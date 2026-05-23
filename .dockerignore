@@ -1,0 +1,41 @@
+# ============================================================
+# .dockerignore — keep the build context lean
+# ============================================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Large data / model files (use volumes instead)
+data/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.h5
+
+# Git
+.git/
+.gitignore
+
+# Logs
+logs/
+*.log
+runs/
+
+# IDE
+.vscode/
+.idea/
+*.swp

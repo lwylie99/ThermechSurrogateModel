@@ -1,0 +1,27 @@
+# ============================================================
+# Python dependencies for PyTorch CUDA ML project
+# ============================================================
+# Core ML
+torch>=2.3.0          # already installed in base image; pin here for reproducibility
+torchvision>=0.18.0
+torchaudio>=2.3.0
+
+# Data & compute
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.4
+scipy>=1.13
+
+# Experiment tracking & visualization
+tensorboard>=2.16
+matplotlib>=3.8
+seaborn>=0.13
+
+# Utilities
+tqdm>=4.66
+pyyaml>=6.0
+python-dotenv>=1.0
+
+# Jupyter (optional – remove if not needed)
+jupyterlab>=4.1
+ipywidgets>=8.1
