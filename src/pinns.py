@@ -5,7 +5,7 @@ from torch import nn, amp, optim, Tensor
 
 from src import loss
 from src.components import Component, PartSet
-from src.components_mat import Medium, Grid
+from src.mediums import Medium, Grid
 from src.components_thermal import Gaussian
 
 
@@ -80,23 +80,22 @@ class FixedPlateModel(Component):
         self.model.train()
 
         with (amp.autocast(self.device.type)):  # allows use of scaler
-            power_map = loss.gaussian_power_source(self.grid_map, [power], self.device)
+            self.plate.boundaries['core'].build_power_map(power, self.device)
             for e in range(epochs):
                 self.optimizer.zero_grad()
                 temps = self.model_plate(power)
 
-                loss_parts = asdict(PartSet())
+                loss_parts = PartSet()
                 for part in loss_parts.keys():
-                    bc = self.plate.get(part)
-                    if part != 'core':  # bc is None: TODO: implement other BCs
+                    bc = self.plate.boundaries[part]
+                    if bc is None:
                         continue
 
                     mask = self.grid.tensorMask(part)
-                    loss_parts[part] = bc.loss_function( # defined in plate set up
-                        u=temps[mask],
-                        coords=self.grid_map[mask].detach().requires_grad_(True), # detach backwards prop from power map bc its not fed into model
-                        k=self.plate.conduction,
-                        power_map=power_map[mask]
+                    # detach from back propagation bc its not fed into model
+                    part_grid = self.grid_map[mask].detach().requires_grad_(True)
+                    loss_parts[part] = bc.loss(
+                        u=temps[mask], coords=part_grid, k=self.plate.conduction
                     )
 
                 total_loss = sum(v for v in loss_parts.values() if v is not None)

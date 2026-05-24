@@ -5,6 +5,12 @@ from typing import Any
 
 @dataclass
 class Component:
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def __setitem__(self, item, value):
+        setattr(self, item, value)
+
     def asDict(self, clean=True):
         if not clean:
             return asdict(self)
@@ -23,9 +29,6 @@ class Component:
     def values(self, clean=True):
         return list(self.asDict(clean).values())
 
-    def get(self, feild_name):
-        return getattr(self, feild_name)
-
 
 @dataclass
 class ModularComponent(Component):
@@ -34,22 +37,37 @@ class ModularComponent(Component):
 
 
 @dataclass
-class NDComponent(ModularComponent):
-    measure: str = None
-    length: float | int = None
-    width: float | int = None
-
-    def dims(self) -> tuple:
-        return self.length, self.width
-
-
-@dataclass
-class PartSet(Component):
+class EdgeSet(Component):
     top: Any = None
     bottom: Any = None
     left: Any = None
     right: Any = None
+
+@dataclass
+class PartSet(EdgeSet):
     core: Any = None
 
-    def parts(self):
-        return [f.name for f in fields(self)]
+
+@dataclass
+class NDComponent(ModularComponent):
+    measure: str = None
+    length: float | int = None
+    width: float | int = None
+    masks = PartSet(
+        top=(0, slice(None)),
+        bottom=(-1, slice(None)),
+        left=(slice(None), 0),
+        right=(slice(None), -1),
+        core=(slice(1, -1), slice(1, -1))
+    )
+    axis = EdgeSet(
+        # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
+        top=1, bottom=1, left=0, right=0
+    )
+    out = EdgeSet(
+        # direction of normal vector pointing outward
+        top=1, bottom=-1, left=-1, right=1
+    )
+
+    def shape(self) -> tuple:
+        return self.length, self.width

@@ -1,17 +1,20 @@
 import json
 
-from src import loss
-from src.components_thermal import Insulated, Robin, Gaussian, PdeCore
-from src.components_mat import Medium
+from components import PartSet
+from components_thermal import Neumann
+from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
+from src.mediums import Medium
 from src.pinns import FixedPlateModel
 
 # define copper plate
 plate = Medium(conduction=0.2, length=1.0, width=1.5)
-plate.top = Insulated()
-plate.bottom = Insulated()
-plate.left = Robin(q_temp=100.0)  # heat sinks: either robin or neumann based
-plate.right = Robin(q_temp=100.0)
-plate.core = PdeCore(loss_function=loss.loss_pde_gaussian)
+plate.setConditions(PartSet(
+    top=Insulated(),
+    bottom=Insulated(),
+    left=Robin(ambient=0.2),
+    right=Neumann(flux=0.01),
+    core=GaussianPde()
+))
 
 #
 
