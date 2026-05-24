@@ -7,6 +7,7 @@ from src.mediums import Medium
 from src.pinns import FixedPlateModel
 
 # define copper plate
+# TODO: add weighting to loss
 plate = Medium(conduction=0.2, length=1.0, width=1.5)
 plate.setConditions(PartSet(
     top=Insulated(),

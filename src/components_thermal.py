@@ -25,6 +25,9 @@ class Gaussian(PowerSource):
 @dataclass
 class BoundaryCondition(Component):
     def loss(self, u, coords, k):
+        ''' physics loss function '''
+        # TODO: does it matter if loss = mse(residual, 0)
+        #  vs loss = mse(actual, pred) ?
         return None
 
 
@@ -60,6 +63,7 @@ class GaussianPde(PdeCore):
 
 @dataclass
 class Edge(BoundaryCondition):
+    ''' edges enforce residuals of 0 '''
     axis: int = None
     direction: int = None
 

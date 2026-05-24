@@ -47,6 +47,18 @@ class EdgeSet(Component):
 class PartSet(EdgeSet):
     core: Any = None
 
+@dataclass
+class WeightedLoss(Component):
+    # TODO: add weighting to loss
+    initial: float = 0.0
+    edge: float = 1.0
+    core: float = 1.0
+    paired: float = 1.0
+
+    def total_loss(self):
+        return None
+
+
 
 @dataclass
 class NDComponent(ModularComponent):

@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict
 import torch
 from torch import nn, amp, optim, Tensor
 
+from components import WeightedLoss
 from src import loss
 from src.components import Component, PartSet
 from src.mediums import Medium, Grid
@@ -53,6 +54,7 @@ class FixedPlateModel(Component):
     model: nn.Module = None
     scaler: amp.GradScaler = None
     optimizer: optim.Optimizer = None
+    lossWts = WeightedLoss()
 
     # criterion: nn.Module = nn.MSELoss()
 
