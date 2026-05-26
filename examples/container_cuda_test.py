@@ -1,10 +1,29 @@
 import torch
 from torch import amp, optim, nn
-from torch.utils.data import TensorDataset
-
-from pinns import BasicMLP
 
 # TODO: validates that container works before trying to run actual code
+class TestMLP(nn.Module):
+    ''' MLP with tanh activation and logits as output '''
+
+    def __init__(self, num_in, num_out, num_blocks, num_hidden, dropout=0.2):
+        super().__init__()
+
+        layers = []
+        l_in, l_out = num_in, num_hidden
+        for i in range(num_blocks - 1):
+            l_out = num_hidden
+            layers += [
+                nn.Linear(l_in, l_out),
+                nn.ReLU(),
+                nn.Dropout(dropout)
+            ]
+            l_in = l_out
+
+        layers += [nn.Linear(l_in, num_out)]
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.network(x)
 
 
 device_str = 'cuda:0' if torch.cuda.is_available() else "cpu"
@@ -13,7 +32,7 @@ device = torch.device(device_str)
 print(f'is cuda available: {torch.cuda.is_available()}')
 print(f'device_str: {device_str}, device: {device}')
 
-model = BasicMLP(3, 1, 5, 128).to(device)
+model = TestMLP(3, 1, 5, 128).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
 
 print(f'model: {model}')
