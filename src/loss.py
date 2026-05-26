@@ -1,12 +1,5 @@
-from typing import List
-
-import numpy as np
 import torch
 from torch.autograd import grad
-
-from components_thermal import BoundaryCondition, Robin
-from src.mediums import Medium, Grid
-from src.components_thermal import Gaussian, PdeCore
 
 
 def gradients(y, x, create_graph=True, retain_graph=True):
@@ -39,6 +32,6 @@ def laplacian_jacobian(u, coords, conductivity=1):
 
     return jac, uxx + uyy
 
+
 def residual_mse(residual):
     torch.nn.functional.mse_loss(residual, torch.zeros_like(residual))
-

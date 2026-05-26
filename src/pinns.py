@@ -22,7 +22,7 @@ class BasicMLP(nn.Module):
             l_out = num_hidden
             layers += [
                 nn.Linear(l_in, l_out),
-                nn.BatchNorm1d(l_out),
+                # nn.BatchNorm1d(l_out),
                 nn.ReLU(),
                 nn.Dropout(dropout)
             ]
