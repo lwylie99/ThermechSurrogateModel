@@ -65,7 +65,7 @@ class FixedPlateModel(Component):
         self.model = BasicMLP(6, 1, 5, 128).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.01, weight_decay=1e-4)
 
-        self.grid_map = loss.build_grid_map(self.grid, self.plate).reshape(-1, 2).to(self.device)
+        self.grid_map = self.grid.build_grid_map(self.plate).reshape(-1, 2).to(self.device)
         self.grid_map.requires_grad_(True)  # needed for autograd
 
     def eval_plate(self, power: Gaussian, ground_truth):
