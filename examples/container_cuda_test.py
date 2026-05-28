@@ -45,6 +45,7 @@ print(f'crit: {criterion}, scaler: {scaler}')
 print(f'training for one epoch with auto-scaler')
 model.train()
 with (amp.autocast(device.type)):  # allows use of scaler
+    # random set of numbers,
     x = torch.tensor([[1.0,2.0,3.0]], dtype=torch.float32).to(device)
     y = torch.tensor([[4.0]], dtype=torch.float32).to(device)
     for epoch in range(20):
