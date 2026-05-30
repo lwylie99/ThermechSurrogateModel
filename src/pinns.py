@@ -87,7 +87,7 @@ class FixedPlateModel(Component):
 
 
 
-    def train_plate(self, power: Gaussian, epochs=10) -> pd.DataFrame:
+    def train_plate(self, power: Gaussian, epochs=10, e_start=0) -> pd.DataFrame:
         ''' train across all points on plate '''
         if self.model is None:
             self.default_model()
@@ -96,7 +96,6 @@ class FixedPlateModel(Component):
 
         loss_list = []
         for e in range(epochs):
-            print(f'sub_epoch: {e}')
             self.optimizer.zero_grad()
 
             loss_parts = dict()
@@ -142,7 +141,8 @@ class FixedPlateModel(Component):
             #         print(f"\t\t\t{name}: grad norm = {p.grad.norm():.6f}")
             self.optimizer.step()
 
-            print(f'\ttotal_loss: ', total_loss)
+            if e % (epochs // 10) == 0:
+                print(f'\tsub_epoch: {e_start+e}, total_loss: ', total_loss)
             loss_parts['total'] = total_loss.item()
             loss_list.append(loss_parts)
             # print(f'\t loss_parts: {loss_parts}')

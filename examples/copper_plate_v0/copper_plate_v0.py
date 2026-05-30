@@ -30,13 +30,13 @@ grid = Grid(plate, units=0.05)
 model = FixedPlateModel(plate=plate, grid=grid, temp_scale=1000)
 model.default_model(device='cuda:0')
 
-ps1 = Gaussian(x=1.3, y=0.9, spread=0.3, amplitude=0.8)
+ps1 = Gaussian(x=1.3, y=0.9, spread=0.3, amplitude=0.65)
 print('power source 1: ', ps1.asDict())
-ps2 = Gaussian(x=0.1, y=0.3, spread=0.3, amplitude=0.8)
+ps2 = Gaussian(x=0.1, y=0.3, spread=0.5, amplitude=1.0)
 print('power source 2: ', ps2.asDict())
 
 print('\nBEGIN TRAINING\n')
-losses = model.train_multi_set([ps1, ps2],1100)
+losses = model.train_multi_set([ps1, ps2],10000)
 # losses = model.train_plate(power_source,1000)
 # print(losses)
 
@@ -53,7 +53,7 @@ plot_util.plot_predicted_temperature(model, grid, plate, ps2, save_dir=save_dir)
 plot_util.plot_temperature_comparison(model, grid, plate, ps2, ambient=10, save_dir=save_dir)
 
 # eval w new power source
-power_source = Gaussian(x=0.75, y=0.75, spread=0.2, amplitude=0.5)
+power_source = Gaussian(x=0.75, y=0.75, spread=0.2, amplitude=0.8)
 print('power source: ', power_source.asDict())
 plot_util.plot_predicted_temperature(model, grid, plate, power_source, save_dir=save_dir)
 plot_util.plot_temperature_comparison(model, grid, plate, power_source, ambient=10, save_dir=save_dir)
