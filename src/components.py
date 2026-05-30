@@ -2,6 +2,8 @@ import json
 from dataclasses import dataclass, asdict, fields
 from typing import Any
 
+from torch import Tensor
+
 
 @dataclass
 class Component:
@@ -20,8 +22,16 @@ class Component:
         } if isinstance(d, dict) else d
         return non_none(asdict(self))
 
-    def asStr(self, clean=True):
+    def asJson(self, clean=True):
         return json.dumps(self.asDict(clean), sort_keys=False, indent=4)
+
+    # def asStr(self, clean=True):
+    #     comp = asdict(self)
+    #     sub_str = lambda d: {
+    #         k: v.asStr() for k, v in d.items() if v is not None
+    #     } if isinstance(d, Component) else d
+    #     comp.replace('{', '{')
+    #     return self.asDict(clean)
 
     def keys(self, clean=True):
         return list(self.asDict(clean).keys())
@@ -46,19 +56,6 @@ class EdgeSet(Component):
 @dataclass
 class PartSet(EdgeSet):
     core: Any = None
-
-@dataclass
-class WeightedLoss(Component):
-    # TODO: add weighting to loss
-    initial: float = 0.0
-    edge: float = 1.0
-    core: float = 1.0
-    paired: float = 1.0
-
-    def total_loss(self):
-        return None
-
-
 
 @dataclass
 class NDComponent(ModularComponent):

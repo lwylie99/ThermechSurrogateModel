@@ -2,8 +2,7 @@ from dataclasses import dataclass, asdict
 
 import torch
 from torch import nn, amp, optim, Tensor
-
-from components import WeightedLoss
+from loss import PartLoss, WeightedLoss
 from src import loss
 from src.components import Component, PartSet
 from src.mediums import Medium, Grid
@@ -81,37 +80,48 @@ class FixedPlateModel(Component):
 
         self.model.train()
 
-        with (amp.autocast(self.device.type)):  # allows use of scaler
-            self.plate.boundaries['core'].build_power_map(power, self.device)
-            for e in range(epochs):
-                self.optimizer.zero_grad()
-                temps = self.model_plate(power)
+        # build power map and masks before training
+        part_grid = self.grid.tensorMask('core', self.grid_map).detach().requires_grad_(True)
+        self.plate.boundaries['core'].build_power_map(part_grid, [power], self.device)
 
-                loss_parts = PartSet()
-                for part in loss_parts.keys():
+        with (amp.autocast(self.device.type)):  # allows use of scaler
+            for e in range(epochs):
+                print(f'sub_epoch: {e}')
+                self.optimizer.zero_grad()
+
+                loss_parts = PartLoss()
+                for part in loss_parts.keys(clean=False):
                     bc = self.plate.boundaries[part]
+                    print(f'\t\tpart: {part}, bc: {bc}')
                     if bc is None:
+                        print(f'{part} not found in plate')
                         continue
 
-                    mask = self.grid.tensorMask(part)
                     # detach from back propagation bc its not fed into model
-                    part_grid = self.grid_map[mask].detach().requires_grad_(True)
+                    part_grid = self.grid.tensorMask(part, self.grid_map).detach().requires_grad_(True)
+                    temps = self.model_plate(power, coords=part_grid)
                     loss_parts[part] = bc.loss(
-                        u=temps[mask], coords=part_grid, k=self.plate.conduction
+                        u=temps, coords=part_grid, k=self.plate.conduction
                     )
 
-                total_loss = sum(v for v in loss_parts.values() if v is not None)
-
+                # TODO: apply weight
+                total_loss = torch.stack([v for v in loss_parts.values() if v is not None]).sum()
                 self.scaler.scale(total_loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
 
-    def model_plate(self, power: Gaussian) -> torch.Tensor:
-        n = self.grid_map.shape[0]
+                print(f'\t loss_parts: {loss_parts}')
+
+
+    def model_plate(self, power: Gaussian, coords=None) -> torch.Tensor:
+        if coords is None:
+            coords = self.grid_map
+
+        n = coords.shape[0]
         gauss_params = torch.tensor(
             [[power.x, power.y, power.amplitude, power.spread]],
             dtype=torch.float32
         ).repeat(n, 1).to(self.device)
-        model_input = torch.cat([self.grid_map, gauss_params], dim=-1)  # (N, 6)
+        model_input = torch.cat([coords, gauss_params], dim=-1)  # (N, 6)
 
         return self.model(model_input)
