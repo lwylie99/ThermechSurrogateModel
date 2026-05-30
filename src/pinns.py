@@ -80,7 +80,7 @@ class FixedPlateModel(Component):
         loss = pd.DataFrame()
         for e in range(epochs):
             for p in power:
-                p_losses = self.train_plate(p, e//len(power))
+                p_losses = self.train_plate(p, epochs//len(power), e)
                 pd.concat([loss, p_losses], ignore_index=True)
 
         return loss
