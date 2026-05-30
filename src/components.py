@@ -69,14 +69,12 @@ class NDComponent(ModularComponent):
         right=(slice(None), -1),
         core=(slice(1, -1), slice(1, -1))
     )
-    axis = EdgeSet(
-        # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
-        top=1, bottom=1, left=0, right=0
-    )
-    out = EdgeSet(
-        # direction of normal vector pointing outward
-        top=1, bottom=-1, left=-1, right=1
-    )
+    # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
+    axis = EdgeSet(top=1, bottom=1, left=0, right=0)
+    # direction of normal vector pointing outward
+    out = EdgeSet(top=1, bottom=-1, left=-1, right=1)
+
+    # def __post_init__(self):
 
     def shape(self) -> tuple:
         return self.length, self.width

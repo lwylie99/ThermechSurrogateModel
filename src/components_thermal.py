@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
+import pandas as pd
 import torch
 from torch import Tensor
 
@@ -45,6 +46,8 @@ class PdeCore(BoundaryCondition):
 class GaussianPde(PdeCore):
     conv_type: str = 'GaussianPde'
     power_map: Tensor = None
+    # power: List[Gaussian] = None
+    # device = None
 
     def build_power_map(self, coords, power: List[Gaussian], device):
         ''' gaussian heat source: Q(x,y) = A * exp(-((x-x0)^2 + (y-y0)^2) / (2*sigma^2)) '''
@@ -58,12 +61,12 @@ class GaussianPde(PdeCore):
         r2 = (x - x0) ** 2 + (y - y0) ** 2  # (N, M) or (N, 1)
         Q = amplitude * torch.exp(-r2 / (2 * spread ** 2))
 
-        self.power_map = Q.sum(dim=-1, keepdim=True)  # (N, 1) — sum over all sources
+        self.power_map = Q.sum(dim=-1, keepdim=True).detach().requires_grad_(True)  # (N, 1) — sum over all sources
 
     def loss(self, u, coords, k) -> Tensor:
         ''' Enforces: k * ∇²u + Q(x,y) = 0 -> residual: k * ∇²u + Q = 0 '''
         jac, u_laplace = laplacian_jacobian(u, coords, k)
-        residual = (u_laplace * k + self.power_map).squeeze()
+        residual = (u_laplace + self.power_map).squeeze()
         return residual_mse(residual)
 
 @dataclass

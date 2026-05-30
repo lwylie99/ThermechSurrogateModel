@@ -30,8 +30,6 @@ class Grid(NDComponent):
     measure: str = 'interval'
     length: int = None
     width: int = None
-    # grid_map: Tensor = None
-    # part_grids: PartSet = None
 
     def __init__(self, plate: Medium, units=0.1, x=None, y=None):
         ''' returns sampling grid
@@ -41,7 +39,6 @@ class Grid(NDComponent):
         self.length = int(plate.length / units) + 2
         self.width = int(plate.width / units) + 2
         self.grid_map = self.build_grid_map(plate)
-        self.masks = self.maskSet()
 
 
     def load_temps(self, filename) -> np.ndarray:
@@ -62,7 +59,6 @@ class Grid(NDComponent):
         mask[self.masks[part]] = True
         mask = mask.reshape(-1)
         if grid_map is not None:
-
             return grid_map[mask]
         return mask # (rows*cols,)
 
@@ -73,7 +69,7 @@ class Grid(NDComponent):
         for p in masks.keys(clean=False):
             mask = torch.zeros(self.shape(), dtype=torch.bool)
             mask[self.masks[p]] = True
-            masks[p] = mask.reshape(-1)  # (rows*cols,)
+            masks[p] = mask #.reshape(-1)  # (rows*cols,)
         return masks
 
     def build_grid_map(self, plate: Medium) -> Tensor:
