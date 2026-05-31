@@ -30,14 +30,16 @@ class BoundaryCondition(Component):
     conv_type: str = 'BoundaryCondition'
     def loss(self, u, coords, k) -> Tensor:
         ''' physics loss function '''
-        # TODO: does it matter if loss = mse(residual, 0)
-        #  vs loss = mse(actual, pred) ?
         return torch.zeros(1)
 
 
 @dataclass
 class PdeCore(BoundaryCondition):
     conv_type: str = 'PdeCore'
+
+    def build_power_map(self, coords, power, device) -> Tensor:
+        return torch.zeros(1)
+
     def loss(self, u, coords, k) -> Tensor:
         return torch.zeros(1)
 
@@ -46,8 +48,6 @@ class PdeCore(BoundaryCondition):
 class GaussianPde(PdeCore):
     conv_type: str = 'GaussianPde'
     power_map: Tensor = None
-    # power: List[Gaussian] = None
-    # device = None
 
     def build_power_map(self, coords, power: List[Gaussian], device):
         ''' gaussian heat source: Q(x,y) = A * exp(-((x-x0)^2 + (y-y0)^2) / (2*sigma^2)) '''
@@ -57,7 +57,6 @@ class GaussianPde(PdeCore):
 
         x, y = coords[:, 0:1], coords[:, 1:2]  # (N, 1)
         x0, y0 = location[..., 0:1], location[..., 1:2]  # (M, 1) or (1,)
-
         r2 = (x - x0) ** 2 + (y - y0) ** 2  # (N, M) or (N, 1)
         Q = amplitude * torch.exp(-r2 / (2 * spread ** 2))
 
