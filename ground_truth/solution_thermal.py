@@ -15,16 +15,16 @@ from scipy.optimize import brentq
 # =============================================================================
 
 # Domain Geometry
-L = 2.0  # Length of the domain in the x-direction
-W = 1.0  # Length of the domain in the y-direction
+L = 40  # Length of the domain in the x-direction [mm]
+W = 40  # Length of the domain in the y-direction [mm]
 
 # Material Properties & Ambient Conditions
-k = 1.0    # Thermal conductivity (W/m·K)
-Ta = 20.0  # Ambient / Reference temperature (°C)
+k = 0.3    # Thermal conductivity of FR-4 [W/(m·K)]
+Ta = 25.0  # Ambient temperature [°C]
 
 # Boundary Conditions (BCs)
-# Note: For Neumann use val = 0 (fully insulated) - non-zero heat flux not functional
-#       For Robin use val = convection coefficient (h) 
+# Note: For Neumann use val (thermal conductivity) = 0 (fully insulated) - non-zero heat flux not functional
+#       For Robin use val (convection coefficient) = desired value (h) [W/(m²·K)]
 
 
 BC_LEFT   = {"type": "Neumann",   "val": 0}
@@ -33,9 +33,20 @@ BC_BOTTOM = {"type": "Robin",       "val": 10.0}
 BC_TOP    = {"type": "Robin",       "val": 10.0}
 
 # Gaussian Heat Sources (Up to 4 sources)
+# Input source values
+power = 0.8     # Power [W] (~0.1 to 1.0) 
+loc_x = 0.5     # Relative location in x-direction [%] (0 to 1) 
+loc_y = 0.5     # Relative location in y-direction [%] (0 to 1)
+sigma = 1.5    # Spread, effective width about x3 [mm] (1 to 2)
+
+# Convert mm to m
+L = L * 1e-3
+W = W * 1e-3
+sigma = sigma * 1e-3
+
 # Format: [Amplitude (Aj), x_center, y_center, spread (sigma)]
 sources = [
-    [1.2,   0.5 * L,  0.5 * W,  0.5],  # Source 1: Strong central spot
+    [power / (2*np.pi * sigma**2),   loc_x * L,  loc_y * W,  sigma],  # Source 1
     [0.0,   0.0,      0.0,      1.0],   # Source 2: Unused (Amplitude = 0)
     [0.0,   0.0,      0.0,      1.0],   # Source 3: Unused (Amplitude = 0)
     [0.0,   0.0,      0.0,      1.0]    # Source 4: Unused (Amplitude = 0)
@@ -44,7 +55,7 @@ sources = [
 # Resolution Control (Number of terms in Fourier expansion)
 N_max = 50  # x-direction terms
 M_max = 50  # y-direction terms
-Nx, Ny = 200, 100  # Mesh grid resolution for plotting
+Nx, Ny = 200, 200  # Mesh grid resolution for plotting
 
 # =============================================================================
 # 2. VALIDATION & PARAMETER SETUP
@@ -208,23 +219,23 @@ fig, ax = plt.subplots(figsize=(11, 6.5))
 
 contour = ax.contourf(X, Y, T, levels=65, cmap='turbo')
 cbar = fig.colorbar(contour, ax=ax)
-cbar.set_label('Temperature (°C)', fontsize=11)
+cbar.set_label('Temperature [°C]', fontsize=11)
 
 ax.set_title('Symmetric 2D Generalized Robin Analytical Solution',
              fontsize=13, fontweight='bold')
-ax.set_xlabel('X Dimension (m)', fontsize=11)
-ax.set_ylabel('Y Dimension (m)', fontsize=11)
+ax.set_xlabel('X Dimension [mm]', fontsize=11)
+ax.set_ylabel('Y Dimension [mm]', fontsize=11)
 
 bc_summary = (
     f"Boundary States:\n"
-    f"Left: {BC_LEFT['type']} (h={h_L}, q={q_L})   |   "
-    f"Right: {BC_RIGHT['type']} (h={h_R}, q={q_R})\n"
-    f"Bottom: {BC_BOTTOM['type']} (h={h_B}, q={q_B})   |   "
-    f"Top: {BC_TOP['type']} (h={h_T}, q={q_T})"
+    f" Left: {BC_LEFT['type']} (h={h_L}, q={q_L})  |   "
+    f"Right: {BC_RIGHT['type']} (h={h_R}, q={q_R})  |  "
+    f"Bottom: {BC_BOTTOM['type']} (h={h_B}, q={q_B})  |  "
+    f"Top: {BC_TOP['type']} (h={h_T}, q={q_T}) "
 )
 
 fig.text(
-    0.5, 0.02,
+    0.5, 0.08,
     bc_summary,
     ha='center',
     va='bottom',
