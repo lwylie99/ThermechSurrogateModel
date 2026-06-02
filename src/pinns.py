@@ -82,7 +82,7 @@ class ThermalModel2D(Component):
 
     # criterion: nn.Module = nn.MSELoss()
 
-    def build_model(self, num_in, num_out, num_blocks, num_hidden, device='cuda:0'):
+    def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-4, wt_decay=1e-4, device='cuda:0'):
         device_str = device if torch.cuda.is_available() else "cpu"
         torch.cuda.empty_cache()
         self.device = torch.device(device_str)
@@ -109,14 +109,21 @@ class ThermalModel2D(Component):
         yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (rows, cols) each
         return torch.stack([xx, yy], dim=-1)  # (rows, cols, 2)
 
-    def _coords(self, part) -> Tensor:
+    def _mask(self, part) -> Tensor:
         ''' a flat boolean mask for use on flattened (N, 2) coord tensor '''
         mask = torch.zeros(self.grid.shape(), dtype=torch.bool)
         mask[self.grid.masks[part]] = True
         mask = mask.reshape(-1)
+        return mask
+
+    def _coords(self, part) -> Tensor:
+        mask = self._mask(part)
         return self.grid_map[mask]
 
-    def _model(self, model_input: Tensor) -> torch.Tensor:
+    def _model_parts(self, model_input: Tensor) -> torch.Tensor:
+        return torch.Tensor()
+
+    def _model(self, model_input:Tensor=None) -> torch.Tensor:
         if self.scaler_enabled:
             with (amp.autocast(self.device.type)):  # allows use of scaler
                 predictions = self.model(model_input) * self.temp_scale
@@ -148,7 +155,7 @@ class SingleGaussPlateModel(ThermalModel2D):
     '''
 
     def default_model(self, num_blocks=6, num_hidden=256, device='cuda:0'):
-        self.build_model(6, 1, 9, 512, device)
+        self.build_model(6, 1, num_blocks, 512, device)
 
     def eval_model(self, power: list[Gaussian], plot=True, save_dir=None):
         if self.model is None:

@@ -32,6 +32,9 @@ class Component:
     def values(self, clean=True):
         return list(self.asDict(clean).values())
 
+    def title(self):
+        return ''
+
 
 @dataclass
 class EdgeSet(Component):
@@ -48,6 +51,9 @@ class PartSet(EdgeSet):
 class ModularComponent(Component):
     x: float = None
     y: float = None
+
+    def title(self):
+        return f'Component at ({self.x}, {self.y})'
 
 @dataclass
 class NDComponent(ModularComponent):

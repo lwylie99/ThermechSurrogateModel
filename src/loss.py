@@ -27,7 +27,7 @@ def laplacian_jacobian(u, coords, conductivity=1):
 
     return jac, uxx + uyy
 
-def laplacian_jacobian(u, coords, conductivity=1):
+def laplacian_jacobian_old(u, coords, conductivity=1):
     jac = jacobian(u, coords)  # (N, 2)
 
     u_xx = gradients(jac[..., 0:1], coords)[0][..., 0]

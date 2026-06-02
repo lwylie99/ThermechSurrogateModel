@@ -3,21 +3,48 @@ import numpy as np
 import pandas as pd
 import torch
 
+import data_util
+from components import Component
 from components_thermal import GaussianPde
+from data_util import DataPair
 
 
-def eval_example(model, plate, grid, power_data: list, save_dir=None):
+def eval_paired_example(model, power_data: list[DataPair], save_dir=None):
     for i in range(len(power_data)):
-        plot_gauss_approx_solution(model, plate, grid, model.grid_map, power_data[i], save_dir=save_dir, suffix=f'_p{i}')
+        p = power_data[i]
+        title = p.name
 
-def train_example(model, plate, grid, power_data: list, epochs=10000, save_dir=None):
+        cur_loss, preds_np, xs, ys = model.eval_pair(p, plot=True)
+        # TODO: MAGGIE - see funct def for more detail
+        plot_paired_predictions(
+            cur_loss, preds_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+        )
+
+
+def eval_plate_example(model, power_data: list, save_dir=None):
+    for i in range(len(power_data)):
+        title = ''
+        p = power_data[i]
+        if isinstance(p, Component):
+            title = p.title()
+
+        total_loss, temps, power_np, xs, ys = model.eval_plate(p, plot=True)
+        plot_power_map_predictions(
+            total_loss, temps, power_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+        )
+
+def train_example(model, power_data:list, pairs:list=None, epochs=100, save_dir=None):
     print(f'\nBEGIN TRAINING ({epochs} Epochs)\n')
-    loss_hist = model.train_model(power_data=power_data, epochs=epochs)
+    loss_hist = model.train_model(power_data=power_data, paired_data=pairs, epochs=epochs)
     print(loss_hist)
+
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
         loss_hist.to_csv(save_dir / "loss_history.csv")
 
+    # TODO: MAGGIE CONTEXT --> this is where the total_loss_plot and the bc_loss_plot are produced
     plot_bc_loss(loss_hist, log_scale=True, save_dir=save_dir)
     plot_total_loss(loss_hist, log_scale=True, save_dir=save_dir)
 
@@ -67,24 +94,32 @@ def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
     plt.show()
 
 
-def plot_predicted_temperature(model, plate, grid, power_source, save_dir=None):
+# TODO: MAGGIE - this would be the plot comparing predictions
+#  (it can call other places if you want, just need the function to pass through here)
+def plot_paired_predictions(loss, preds_np, xs, ys, title='', save_dir=None, save_suffix=''):
+    # place holder --> could replace w something like
+    # ground_truth_class.maggie_plot_function(loss, preds_np, xs, ys)
+    plot_predicted_temperature(loss, preds_np, None, xs, ys, title, save_dir, save_suffix)
+
+    if save_dir: # can remove if want
+        path = save_dir / f'paired_prediction_temps{save_suffix}.png'
+        plt.savefig(path, dpi=150)
+        print(f'Saved to {path}')
+
+    plt.show()
+
+
+# TODO: MAGGIE CONTEXT -->  - below are plot methods mostly for trouble shooting
+#  welcome to change em up, but no work needed here right now as far as I know
+
+def plot_predicted_temperature(loss, temps, power_np, xs, ys, title='', save_dir=None, save_suffix=''):
     """
     Plots predicted temperature field from the PINN model.
     """
-    model.model.eval()
-
-    with torch.no_grad():
-        mod_in = model._build_input(power_source, coords=model.grid_map)
-        preds = model._model(mod_in)
-        preds_np = preds.detach().cpu().numpy().reshape(grid.length, grid.width)
-
-    xs = np.linspace(0, plate.length, grid.length)
-    ys = np.linspace(0, plate.width, grid.width)
-
     fig, ax = plt.subplots(figsize=(6, 5))
-    im = ax.contourf(xs, ys, preds_np, levels=50, cmap='hot')
-    ax.scatter(power_source.x, power_source.y, c='cyan', marker='x', s=100, label='Heat source')
-    ax.set_title('Predicted Temperature')
+    im = ax.contourf(xs, ys, temps, levels=50, cmap='hot')
+    # ax.scatter(power_source.x, power_source.y, c='cyan', marker='x', s=100, label='Heat source')
+    ax.set_title(f'Predicted Temperature ({title}) (Loss: {loss.item()})')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.legend()
@@ -92,57 +127,46 @@ def plot_predicted_temperature(model, plate, grid, power_source, save_dir=None):
     plt.tight_layout()
 
     if save_dir:
-        path = save_dir / 'predicted_temperature.png'
+        path = save_dir / f'predicted_temperature{save_suffix}.png'
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
+
     plt.show()
 
 
-def plot_gauss_predictions(model, plate, grid, grid_map, power_source, save_dir=None, suffix=''):
+def plot_power_map_predictions(loss, temps, power_np, xs, ys, title, save_dir=None, save_suffix=''):
     """
     Plots predicted vs analytical temperature fields side by side.
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
-    model.model.eval()
-    with torch.no_grad():
-        mod_in = model._build_input(power_source, coords=model.grid_map)
-        preds = model._model(mod_in)
-        preds_np = preds.detach().cpu().numpy().reshape(grid.length, grid.width)
-
-    xs = np.linspace(0, plate.length, grid.length)
-    ys = np.linspace(0, plate.width, grid.width)
-
     fig, axes = plt.subplots(1, 2, figsize=(13, 6))
 
-    im0 = axes[0].contourf(xs, ys, preds_np, levels=50, cmap='hot')
-    axes[0].set_title('Predicted Temperature')
+    im0 = axes[0].contourf(xs, ys, temps, levels=50, cmap='hot')
+    axes[0].set_title(f'Predicted Temperature (Loss: {loss.item()})')
     axes[0].set_xlabel('x')
     axes[0].set_ylabel('y')
     fig.colorbar(im0, ax=axes[0], label='Temp')
 
-    bc = GaussianPde()
-    bc.build_power_map(grid_map, [power_source], model.device)
-    power_np = bc.power_map.cpu().detach().numpy().reshape(grid.length, grid.width)
-
     im1 = axes[1].contourf(xs, ys, power_np, levels=50, cmap='plasma')
-    axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
-    axes[1].set_title(f'Power Input  (A={power_source.amplitude}, σ={power_source.spread})')
+    # axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
+    axes[1].set_title(f'Power Map')
     axes[1].set_xlabel('x')
     axes[1].set_ylabel('y')
-    axes[1].legend()
+    # axes[1].legend()
     fig.colorbar(im1, ax=axes[1], label='Power (W)')
 
-    plt.suptitle(f'Gaussian source at ({power_source.x}, {power_source.y}), '
-                 f'A={power_source.amplitude}, σ={power_source.spread}')
+    plt.suptitle(title)
     plt.tight_layout()
 
     if save_dir:
-        path = save_dir / f'temperature_comparison_{suffix}.png'
+        path = save_dir / f'temperature_comparison{save_suffix}.png'
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
 
     plt.show()
 
+# TODO: MAGGIE - this one is just for guassian solutions,
+#  its gross tbh but it lets me compare the temp range mostly
 def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_dir=None, suffix=''):
     """
     Plots predicted vs analytical temperature fields side by side.
@@ -150,7 +174,7 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     """
     model.model.eval()
     with torch.no_grad():
-        mod_in = model._build_input(power_source, coords=model.grid_map)
+        mod_in = model._build_input(power_source)
         preds = model._model(mod_in)
         preds_np = preds.detach().cpu().numpy().reshape(grid.length, grid.width)
 
