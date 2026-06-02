@@ -174,16 +174,6 @@ def eval_norm(w, beta_1, L):
 
 
 def build_power_map(x, y, mus, sigmas, amplitudes):
-    """
-    Create a power density field [W/m²].
-
-    mus        : [(x1,y1), (x2,y2), ...]
-    sigmas     : [sigma1, sigma2, ...]
-    amplitudes : [A1, A2, ...]
-
-    Returns:
-        P(x,y)
-    """
 
     Xp, Yp = np.meshgrid(x, y, indexing="xy")
     P = np.zeros_like(Xp)
@@ -194,7 +184,8 @@ def build_power_map(x, y, mus, sigmas, amplitudes):
             / (2 * sigma**2)
         )
 
-    return P
+    # Convert P from W/m^2 to W/mm^2 for ML input
+    return P*1e-6
 
 # =============================================================================
 # 4. EXECUTE SAMPLE
@@ -208,14 +199,14 @@ for case in sampling_plan:
     print(f"Running Case {case['num']} — {case['label']}")
 
     power = case["power"]
-    loc_x = case["x"]
-    loc_y = case["y"]
+    loc_x = case["x"] * L
+    loc_y = case["y"] * W
     sigma = case["sigma"] * 1e-3  # mm -> m
 
     # Format: [Amplitude (Aj), x_center, y_center, spread (sigma)]
     sources = [
-        [power / (2*np.pi * sigma**2),   loc_x * L,
-         loc_y * W,  sigma],  # Source 1
+        [power / (2*np.pi * sigma**2),   loc_x,
+         loc_y,  sigma],  # Source 1
         [0.0,   0.0,      0.0,      1.0],   # Source 2: Unused (Amplitude = 0)
         [0.0,   0.0,      0.0,      1.0],   # Source 3: Unused (Amplitude = 0)
         [0.0,   0.0,      0.0,      1.0]    # Source 4: Unused (Amplitude = 0)
@@ -223,7 +214,7 @@ for case in sampling_plan:
     
     # Build powermap for ML input
     mus_sources = [
-        (loc_x * L, loc_y * W)
+        (loc_x, loc_y)
     ]
 
     sigmas_sources = [
@@ -305,8 +296,8 @@ for case in sampling_plan:
         "Case":     f"Case {case['num']}",
         "Label":    case["label"],
         "Power_W":  power,
-        "x_L":      loc_x,
-        "y_W":      loc_y,
+        "x_mm":      loc_x * 1e3,
+        "y_mm":      loc_y * 1e3,
         "Sigma": case["sigma"],
         "Tmax_C":   np.max(T),
         "Tavg_C":   np.mean(T),
@@ -319,19 +310,19 @@ for case in sampling_plan:
         "T":     T.copy(),
         "power": power,
         "sigma": case["sigma"],
-        "x":     loc_x,
-        "y":     loc_y,
+        "x_mm":     loc_x * 1e3,
+        "y_mm":     loc_y * 1e3,
         "P": P.copy(),
     })
     
     # Individual case plot
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7), subplot_kw={'box_aspect': 1})
 
     # Power Map (Input) - LEFT
     contour_P = ax1.contourf(
         X * 1e3,
         Y * 1e3,
-        P * 1e-6,
+        P,
         levels=65,
         cmap="viridis"
     )
@@ -370,8 +361,9 @@ for case in sampling_plan:
     
     # Overall Figure Details
     fig.suptitle(
-    f"Case {case['num']} | {case['label']}\n"
-    "FR-4 Substrate: Gaussian Heat Source → Temperature Field",
+    "FR-4 Substrate: 2D Thermal Problem\n"
+        f"Case: {case['num']} | Source: {case['label']}"
+    ,
     fontsize=13,
     fontweight="bold"
     )
@@ -383,7 +375,7 @@ for case in sampling_plan:
         f"Bottom: {BC_BOTTOM['type']} (h={h_B}, q={q_B})  |  "
         f"Top: {BC_TOP['type']} (h={h_T}, q={q_T}) \n"
         r"$\bf{Source\ Details}$"
-        f":  Power: {power:.1f} [W] |  Location: ({loc_x * W * 1e3:.1f}, {loc_y * L * 1e3:.1f})  |  Spread: {sigma * 1e3:.1f} [mm] "
+        f":  Power: {power:.1f} [W] |  Location: ({loc_x * 1e3:.1f}, {loc_y * 1e3:.1f})  |  Spread: {sigma * 1e3:.1f} [mm] "
     )
 
     fig.text(
