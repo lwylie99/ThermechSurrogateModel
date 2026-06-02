@@ -407,6 +407,13 @@ df_output.to_csv(
     index=False
 )
 
+all_T = np.array([item["T"] for item in results_full])
+print(all_T.shape)
+np.save(
+    os.path.join(output_dir, "temperature.npy"),
+    all_T
+)
+
 all_P = np.array([item["P"] for item in results_full])
 print(all_P.shape)
 np.save(
