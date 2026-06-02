@@ -46,9 +46,3 @@ class Grid(NDComponent):
     def ones(self) -> np.ndarray:
         return np.ones(self.shape())
 
-@dataclass
-class Solution(Grid):
-    ''' grid that holds ground truth solution '''
-    def load_y_act(self, filename) -> np.ndarray:
-        return self.zeros()
-

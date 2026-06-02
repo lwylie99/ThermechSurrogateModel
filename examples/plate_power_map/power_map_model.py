@@ -31,16 +31,16 @@ fixed_spread, fixed_amp = plate.length/4, 1.0
 power_sources = [
     Gaussian(x=plate.length*0.15, y=plate.length*0.15, spread=fixed_spread, amplitude=fixed_amp),
     # Gaussian(x=plate.length*0.15, y=plate.length*0.5, spread=fixed_spread, amplitude=fixed_amp),
-    Gaussian(x=plate.length*0.15, y=plate.length*0.85, spread=fixed_spread, amplitude=fixed_amp),
+    # Gaussian(x=plate.length*0.15, y=plate.length*0.85, spread=fixed_spread, amplitude=fixed_amp),
     # Gaussian(x=plate.length*0.5, y=plate.length*0.15, spread=fixed_spread, amplitude=fixed_amp),
     # Gaussian(x=plate.length*0.5, y=plate.length*0.5, spread=fixed_spread, amplitude=fixed_amp),
     # Gaussian(x=plate.length*0.5, y=plate.length*0.85, spread=fixed_spread, amplitude=fixed_amp),
-    Gaussian(x=plate.length*0.85, y=plate.length*0.15, spread=fixed_spread, amplitude=fixed_amp),
+    # Gaussian(x=plate.length*0.85, y=plate.length*0.15, spread=fixed_spread, amplitude=fixed_amp),
     # Gaussian(x=plate.length*0.85, y=plate.length*0.5, spread=fixed_spread, amplitude=fixed_amp),
-    Gaussian(x=plate.length*0.85, y=plate.length*0.85, spread=fixed_spread, amplitude=fixed_amp),
+    # Gaussian(x=plate.length*0.85, y=plate.length*0.85, spread=fixed_spread, amplitude=fixed_amp),
 ]
 
-example_util.train_example(model, plate, grid, power_sources, len(power_sources*100), train_dir)
+example_util.train_example(model, plate, grid, power_sources, len(power_sources*10), train_dir)
 example_util.eval_example(model, plate, grid, power_sources, train_dir)
 #print('copper plate attribs: ', json.dumps(plate.asDict(), sort_keys=False, indent=4))
 

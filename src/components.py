@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass, asdict, fields
 from typing import Any
 
@@ -25,25 +26,11 @@ class Component:
     def asJson(self, clean=True):
         return json.dumps(self.asDict(clean), sort_keys=False, indent=4)
 
-    # def asStr(self, clean=True):
-    #     comp = asdict(self)
-    #     sub_str = lambda d: {
-    #         k: v.asStr() for k, v in d.items() if v is not None
-    #     } if isinstance(d, Component) else d
-    #     comp.replace('{', '{')
-    #     return self.asDict(clean)
-
     def keys(self, clean=True):
         return list(self.asDict(clean).keys())
 
     def values(self, clean=True):
         return list(self.asDict(clean).values())
-
-
-@dataclass
-class ModularComponent(Component):
-    x: float = None
-    y: float = None
 
 
 @dataclass
@@ -56,6 +43,11 @@ class EdgeSet(Component):
 @dataclass
 class PartSet(EdgeSet):
     core: Any = None
+
+@dataclass
+class ModularComponent(Component):
+    x: float = None
+    y: float = None
 
 @dataclass
 class NDComponent(ModularComponent):

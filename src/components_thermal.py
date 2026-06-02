@@ -60,13 +60,22 @@ class GaussianPde(PdeCore):
         r2 = (x - x0) ** 2 + (y - y0) ** 2  # (N, M) or (N, 1)
         Q = amplitude * torch.exp(-r2 / (2 * spread ** 2))
 
-        self.power_map = Q.sum(dim=-1, keepdim=True).detach().requires_grad_(True)  # (N, 1) — sum over all sources
+        self.power_map = Q.sum(dim=-1, keepdim=True).detach() #.requires_grad_(True)  # (N, 1) — sum over all sources
 
     def loss(self, u, coords, k) -> Tensor:
         ''' Enforces: k * ∇²u + Q(x,y) = 0 -> residual: k * ∇²u + Q = 0 '''
         jac, u_laplace = laplacian_jacobian(u, coords, k)
+
+        # print(f"  lap: mean={u_laplace.mean():.4f}, std={u_laplace.std():.4f}, range=[{u_laplace.min():.4f}, {u_laplace.max():.4f}]")
+        # print(f"  Q:   mean={self.power_map.mean():.4f}")  # add in loss() instead
+
+        # residuals are too weak at low temp areas, need to make sure they are weighted heavier
         residual = (u_laplace + self.power_map).squeeze()
-        return residual_mse(residual)
+        weights = 1.0 / (self.power_map.squeeze().abs() + 1e-4)
+        weights = weights / weights.mean()
+
+        return (weights * (residual**2)).mean()
+        # return residual_mse(residual)
 
 @dataclass
 class Edge(BoundaryCondition):
