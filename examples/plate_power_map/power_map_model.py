@@ -32,7 +32,8 @@ model = PowerMapPlateModel(
 model.default_model(
     num_blocks=6, num_hidden=512, lr=0.0001, wt_decay=0.0001, device='cuda:0'
 )
-fixed_spread, fixed_amp = plate.length/4, 1.0
+fixed_spread, fixed_power = plate.length/4, 1.0
+fixed_amp = fixed_power / (2*np.pi*fixed_spread**2)
 power_sources = [
     Gaussian(x=plate.length*0.25, y=plate.length*0.4, spread=fixed_spread, amplitude=fixed_amp),
     # Gaussian(x=plate.length*0.15, y=plate.length*0.5, spread=fixed_spread, amplitude=fixed_amp),
