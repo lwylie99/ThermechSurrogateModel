@@ -68,10 +68,13 @@ def case_filename(case):
     return f"Case{case['num']}_{safe_label}"
 
 results = []
-plot_results = []
+results_full = []
 
 output_dir = "results"
 os.makedirs(output_dir, exist_ok=True)
+
+input_dir = "inputs"
+os.makedirs(input_dir, exist_ok=True)
 
 # =============================================================================
 # 2. VALIDATION & PARAMETER SETUP
@@ -169,6 +172,30 @@ def eval_norm(w, beta_1, L):
     c = beta_1 / w
     return (L / 2.0) * (1.0 + c**2) + (np.sin(2.0 * w * L) / (4.0 * w)) * (1.0 - c**2) + (c / w) * (np.sin(w * L)**2)
 
+
+def build_power_map(x, y, mus, sigmas, amplitudes):
+    """
+    Create a power density field [W/m²].
+
+    mus        : [(x1,y1), (x2,y2), ...]
+    sigmas     : [sigma1, sigma2, ...]
+    amplitudes : [A1, A2, ...]
+
+    Returns:
+        P(x,y)
+    """
+
+    Xp, Yp = np.meshgrid(x, y, indexing="xy")
+    P = np.zeros_like(Xp)
+
+    for (x0, y0), sigma, A in zip(mus, sigmas, amplitudes):
+        P += A * np.exp(
+            -((Xp - x0)**2 + (Yp - y0)**2)
+            / (2 * sigma**2)
+        )
+
+    return P
+
 # =============================================================================
 # 4. EXECUTE SAMPLE
 # =============================================================================
@@ -193,11 +220,32 @@ for case in sampling_plan:
         [0.0,   0.0,      0.0,      1.0],   # Source 3: Unused (Amplitude = 0)
         [0.0,   0.0,      0.0,      1.0]    # Source 4: Unused (Amplitude = 0)
     ]
+    
+    # Build powermap for ML input
+    mus_sources = [
+        (loc_x * L, loc_y * W)
+    ]
+
+    sigmas_sources = [
+        sigma
+    ]
+
+    amps_sources = [
+        power / (2*np.pi*sigma**2)
+    ]
+
+    P = build_power_map(
+        x_vec,
+        y_vec,
+        mus_sources,
+        sigmas_sources,
+        amps_sources
+    )
 
     # Calculate eigenvalue arrays
     lambdas = get_eigenvalues(beta_L, beta_R, L, N_max)
     mus = get_eigenvalues(beta_B, beta_T, W, M_max)
-    
+
     
     # Initialize array with ambient background temperature
     T = np.zeros_like(X) + Ta
@@ -262,9 +310,10 @@ for case in sampling_plan:
         "Sigma": case["sigma"],
         "Tmax_C":   np.max(T),
         "Tavg_C":   np.mean(T),
+        "Pmax": np.max(P),
     })
 
-    plot_results.append({
+    results_full.append({
         "num":   case["num"],
         "label": case["label"],
         "T":     T.copy(),
@@ -272,24 +321,60 @@ for case in sampling_plan:
         "sigma": case["sigma"],
         "x":     loc_x,
         "y":     loc_y,
+        "P": P.copy(),
     })
     
     # Individual case plot
-    fig, ax = plt.subplots(figsize=(11, 6.5))
- 
-    contour = ax.contourf(X * 1e3, Y * 1e3, T, levels=65, cmap="turbo")
-    cbar = fig.colorbar(contour, ax=ax)
-    cbar.set_label("Temperature [°C]", fontsize=11)
- 
-    ax.set_title(
-        f"Case {case['num']}  |  {case['label']}\n"
-        "Steady-State Temperature Field — FR-4 Substrate (Analytical Solution)",
-        fontsize=12,
-        fontweight="bold",
-        linespacing=1.6,
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+
+    # Power Map (Input) - LEFT
+    contour_P = ax1.contourf(
+        X * 1e3,
+        Y * 1e3,
+        P * 1e-6,
+        levels=65,
+        cmap="viridis"
     )
-    ax.set_xlabel("X [mm]", fontsize=11)
-    ax.set_ylabel("Y [mm]", fontsize=11)
+
+    cbar_P = fig.colorbar(
+        contour_P,
+        ax=ax1
+    )
+    cbar_P.set_label(
+        "Power Density [W/mm²]",
+        fontsize=11
+    )
+
+    ax1.set_title(
+        "Input: Gaussian Power Map",
+        fontsize=11,
+        fontweight="bold"
+    )
+
+    ax1.set_xlabel("X [mm]")
+    ax1.set_ylabel("Y [mm]")
+
+    # Temperature Filed (Output) - RIGHT
+    contour_T = ax2.contourf(X * 1e3, Y * 1e3, T, levels=65, cmap="turbo")
+    cbar = fig.colorbar(contour_T, ax=ax2)
+    cbar.set_label("Temperature [°C]", fontsize=11)
+
+    ax2.set_title(
+    "Output: Steady-State Temperature",
+    fontsize=11,
+    fontweight="bold"
+    )
+    
+    ax2.set_xlabel("X [mm]", fontsize=11)
+    ax2.set_ylabel("Y [mm]", fontsize=11)
+    
+    # Overall Figure Details
+    fig.suptitle(
+    f"Case {case['num']} | {case['label']}\n"
+    "FR-4 Substrate: Gaussian Heat Source → Temperature Field",
+    fontsize=13,
+    fontweight="bold"
+    )
 
     plot_summary = (
         r"$\bf{Boundary\ States}$"
@@ -302,7 +387,7 @@ for case in sampling_plan:
     )
 
     fig.text(
-        0.5, 0.08,
+        0.5, 0.06,
         plot_summary,
         ha='center',
         va='bottom',
@@ -313,7 +398,7 @@ for case in sampling_plan:
                   alpha=0.8)
     )
 
-    plt.tight_layout(rect=[0, 0.12, 1, 1])
+    plt.tight_layout(rect=[0, 0.12, 1, 0.92])
     plt.savefig(os.path.join(output_dir, f"{fname}.png"), dpi=300, bbox_inches="tight")
 
     plt.close()
@@ -324,10 +409,17 @@ for case in sampling_plan:
 # =============================================================================
 # 5. SAVE RESULTS
 # =============================================================================
-df = pd.DataFrame(results)
-df.to_csv(
+df_output = pd.DataFrame(results)
+df_output.to_csv(
     os.path.join(output_dir, "sampling_summary.csv"),
     index=False
+)
+
+all_P = np.array([item["P"] for item in results_full])
+print(all_P.shape)
+np.save(
+    os.path.join(input_dir, "powermaps.npy"),
+    all_P
 )
 
 # =============================================================================
@@ -349,11 +441,11 @@ fig.suptitle(
     linespacing=1.6,
 )
  
-global_min = min(np.min(item["T"]) for item in plot_results)
-global_max = max(np.max(item["T"]) for item in plot_results)
+global_min = min(np.min(item["T"]) for item in results_full)
+global_max = max(np.max(item["T"]) for item in results_full)
  
 last_contour = None
-for ax, item in zip(axes_flat, plot_results):
+for ax, item in zip(axes_flat, results_full):
     last_contour = ax.contourf(
         X * 1e3, Y * 1e3, item["T"],
         levels=65,
