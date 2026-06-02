@@ -2,6 +2,8 @@ import json
 from dataclasses import dataclass, asdict, fields
 from typing import Any
 
+from torch import Tensor
+
 
 @dataclass
 class Component:
@@ -20,8 +22,16 @@ class Component:
         } if isinstance(d, dict) else d
         return non_none(asdict(self))
 
-    def asStr(self, clean=True):
+    def asJson(self, clean=True):
         return json.dumps(self.asDict(clean), sort_keys=False, indent=4)
+
+    # def asStr(self, clean=True):
+    #     comp = asdict(self)
+    #     sub_str = lambda d: {
+    #         k: v.asStr() for k, v in d.items() if v is not None
+    #     } if isinstance(d, Component) else d
+    #     comp.replace('{', '{')
+    #     return self.asDict(clean)
 
     def keys(self, clean=True):
         return list(self.asDict(clean).keys())
@@ -48,19 +58,6 @@ class PartSet(EdgeSet):
     core: Any = None
 
 @dataclass
-class WeightedLoss(Component):
-    # TODO: add weighting to loss
-    initial: float = 0.0
-    edge: float = 1.0
-    core: float = 1.0
-    paired: float = 1.0
-
-    def total_loss(self):
-        return None
-
-
-
-@dataclass
 class NDComponent(ModularComponent):
     measure: str = None
     length: float | int = None
@@ -72,14 +69,12 @@ class NDComponent(ModularComponent):
         right=(slice(None), -1),
         core=(slice(1, -1), slice(1, -1))
     )
-    axis = EdgeSet(
-        # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
-        top=1, bottom=1, left=0, right=0
-    )
-    out = EdgeSet(
-        # direction of normal vector pointing outward
-        top=1, bottom=-1, left=-1, right=1
-    )
+    # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
+    axis = EdgeSet(top=1, bottom=1, left=0, right=0)
+    # direction of normal vector pointing outward
+    out = EdgeSet(top=1, bottom=-1, left=-1, right=1)
+
+    # def __post_init__(self):
 
     def shape(self) -> tuple:
         return self.length, self.width

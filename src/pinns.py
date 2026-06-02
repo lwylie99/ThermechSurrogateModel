@@ -1,16 +1,16 @@
 from dataclasses import dataclass, asdict
+from pathlib import Path
 
+import pandas as pd
 import torch
 from torch import nn, amp, optim, Tensor
-
-from components import WeightedLoss
+from loss import PartLoss, WeightedLoss
 from src import loss
 from src.components import Component, PartSet
 from src.mediums import Medium, Grid
 from src.components_thermal import Gaussian
 
-
-class BasicMLP(nn.Module):
+class TanMLP(nn.Module):
     ''' MLP with tanh activation and logits as output '''
 
     def __init__(self, num_in, num_out, num_blocks, num_hidden, dropout=0.2):
@@ -23,7 +23,7 @@ class BasicMLP(nn.Module):
             layers += [
                 nn.Linear(l_in, l_out),
                 # nn.BatchNorm1d(l_out),
-                nn.ReLU(),
+                nn.Tanh(),
                 nn.Dropout(dropout)
             ]
             l_in = l_out
@@ -34,9 +34,80 @@ class BasicMLP(nn.Module):
     def forward(self, x):
         return self.network(x)
 
+    def save_checkpoint(self, epoch, optimizer, loss, save_dir, check_name=''):
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss
+        }
+        torch.save(checkpoint, save_dir/f'checkpoint{check_name}.pth')
+
+    def load_checkpoint(self, optimizer, save_dir, check_name=''):
+        checkpoint = torch.load(save_dir/f'checkpoint{check_name}.pth')
+        self.load_state_dict(checkpoint['model_state_dict'])
+        return optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
 
 @dataclass
-class FixedPlateModel(Component):
+class ThermalModel2D(Component):
+    '''
+    MLP Model for single 2D plate use
+    '''
+    model_dir: Path = None
+    temp_scale: float = None
+    plate: Medium = None
+    grid: Grid = None
+    grid_map: Tensor = None
+
+    device = None
+    model: TanMLP = None
+    scaler: amp.GradScaler = None
+    optimizer: optim.Optimizer = None
+
+    # criterion: nn.Module = nn.MSELoss()
+
+    def build_model(self, num_in, num_out, num_blocks, num_hidden, device='cuda:0'):
+        device_str = device if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device_str)
+        self.scaler = amp.GradScaler(device_str)
+        self.model = TanMLP(num_in, num_out, num_blocks, num_hidden).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-4)
+        self.grid_map = self._build_grid_map().reshape(-1, 2).to(self.device)
+
+    def save_checkpoint(self, epoch, loss, name=''):
+        self.model.save_checkpoint(epoch, self.optimizer, loss, self.model_dir, check_name=f'_epoch{epoch}_{name}')
+
+    def load_checkpoint(self, epoch, name=''):
+        self.optimizer = self.model.load_checkpoint(self.optimizer, self.model_dir, check_name=f'_epoch{epoch}_{name}')
+
+    def _build_grid_map(self) -> Tensor:
+        ''' MAPS PLATE TO GRID coords[i,j] = [x_cm, y_cm] '''
+        xs = torch.linspace(0, self.plate.length, self.grid.length)
+        ys = torch.linspace(0, self.plate.width, self.grid.width)
+        yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (rows, cols) each
+        return torch.stack([xx, yy], dim=-1)  # (rows, cols, 2)
+
+    def _coords(self, part) -> Tensor:
+        ''' a flat boolean mask for use on flattened (N, 2) coord tensor '''
+        mask = torch.zeros(self.grid.shape(), dtype=torch.bool)
+        mask[self.grid.masks[part]] = True
+        mask = mask.reshape(-1)
+        return self.grid_map[mask]
+
+    def _model(self, model_input: Tensor) -> torch.Tensor:
+        with (amp.autocast(self.device.type)):  # allows use of scaler
+            predictions = self.model(model_input) * self.temp_scale
+        return predictions
+
+    def _apply_loss(self, total_loss: Tensor):
+        self.scaler.scale(total_loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+
+
+@dataclass
+class SingleGaussPlateModel(ThermalModel2D):
     '''
     MLP Model for single 2D plate use, only varying factor is the power sources
     num_in: 6
@@ -45,73 +116,95 @@ class FixedPlateModel(Component):
     num_out: 1
         - temp/stress at (x,y)
     '''
-    temp_scale: float = None
-    plate: Medium = None
-    grid: Grid = None
-    grid_map: Tensor = None
-
-    device = None
-    model: nn.Module = None
-    scaler: amp.GradScaler = None
-    optimizer: optim.Optimizer = None
-    lossWts = WeightedLoss()
-
-    # criterion: nn.Module = nn.MSELoss()
 
     def default_model(self, device='cuda:0'):
-        device_str = device if torch.cuda.is_available() else "cpu"
-        self.device = torch.device(device_str)
-        self.scaler = amp.GradScaler(device_str)
-        self.model = BasicMLP(6, 1, 5, 128).to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01, weight_decay=1e-4)
+        self.build_model(6, 1, 8, 128, device)
 
-        self.grid_map = self.grid.build_grid_map(self.plate).reshape(-1, 2).to(self.device)
-        self.grid_map.requires_grad_(True)  # needed for autograd
-
-    def eval_plate(self, power: Gaussian, ground_truth):
-        ''' eval across all points on plate '''
+    def eval_model(self, power: list[Gaussian], plot=True, save_dir=None):
         if self.model is None:
             self.default_model()
         self.model.eval()
 
-    def train_plate(self, power: Gaussian, epochs=1):
+
+    def train_model(self, power: list[Gaussian], epochs=12) -> pd.DataFrame:
+        if len(power) == 1:
+            return self._train_plate(power[0], epochs)
+
+        sub_e = int(epochs ** (1/2))
+        pwr_e = max(1, epochs//len(power))
+        save_int = max(1, epochs//6)
+        next_save = save_int
+        loss_hist = pd.DataFrame()
+        last_loss = None
+        for e in range(sub_e):
+            i = e
+            for p in power:
+                print(f'EPOCH: {e}, power: ', p)
+                last_loss, p_losses = self._train_plate(p, pwr_e)
+                pd.concat([loss_hist, p_losses], ignore_index=True)
+                i += pwr_e
+
+            if i >= next_save or i == epochs:
+                next_save += epochs // 6
+                self.save_checkpoint(i, last_loss)
+
+        return loss_hist
+
+    def _train_plate(self, power: Gaussian, epochs=10) -> pd.DataFrame:
         ''' train across all points on plate '''
         if self.model is None:
             self.default_model()
-
         self.model.train()
 
-        with (amp.autocast(self.device.type)):  # allows use of scaler
-            self.plate.boundaries['core'].build_power_map(power, self.device)
-            for e in range(epochs):
-                self.optimizer.zero_grad()
-                temps = self.model_plate(power)
+        loss_list = []
+        for e in range(epochs):
+            self.optimizer.zero_grad()
 
-                loss_parts = PartSet()
-                for part in loss_parts.keys():
-                    bc = self.plate.boundaries[part]
-                    if bc is None:
-                        continue
+            loss_parts = dict()
+            total_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+            for part in PartSet().keys(clean=False):
+                bc = self.plate.boundaries[part]
+                if bc is None:
+                    continue
 
-                    mask = self.grid.tensorMask(part)
-                    # detach from back propagation bc its not fed into model
-                    part_grid = self.grid_map[mask].detach().requires_grad_(True)
-                    loss_parts[part] = bc.loss(
-                        u=temps[mask], coords=part_grid, k=self.plate.conduction
-                    )
+                # detach from back propagation bc its not fed into model
+                coords = self._coords(part).requires_grad_(True)
+                if part == 'core':
+                    bc.build_power_map(coords, [power], self.device)
 
-                total_loss = sum(v for v in loss_parts.values() if v is not None)
+                mod_in = self._build_input(power, coords=coords)
+                temps = self._model(mod_in)
 
-                self.scaler.scale(total_loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                cur_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
+                cur_loss = cur_loss * (coords.shape[0] / self.grid_map.shape[0])
+                total_loss = total_loss + cur_loss
+                loss_parts[part] = cur_loss.item()
 
-    def model_plate(self, power: Gaussian) -> torch.Tensor:
-        n = self.grid_map.shape[0]
+            self._apply_loss(total_loss)
+            loss_parts['total'] = total_loss.item()
+            loss_list.append(loss_parts)
+
+            if epochs == 1 or e % (epochs // 3) == 0:
+                print(f'\tPWR_EPOCH: {e}, total_loss: ', total_loss)
+
+        return total_loss, pd.DataFrame(loss_list)
+
+    def _build_input(self, power: Gaussian, coords=None) -> torch.Tensor:
+        if coords is None:
+            coords = self.grid_map
+
         gauss_params = torch.tensor(
             [[power.x, power.y, power.amplitude, power.spread]],
             dtype=torch.float32
-        ).repeat(n, 1).to(self.device)
-        model_input = torch.cat([self.grid_map, gauss_params], dim=-1)  # (N, 6)
+        ).repeat(coords.shape[0], 1).to(self.device)
+        return torch.cat([coords, gauss_params], dim=-1)  # (N, 6)
 
-        return self.model(model_input)
+
+
+
+# def _train_plate(self, power: Gaussian, epochs=10, e_start=0) -> pd.DataFrame:
+    # print(f"\tpart: {part.upper()}, part_grid -> shape: {part_grid.shape}, req_grad: {part_grid.requires_grad}, is_leaf: {part_grid.is_leaf}")
+    # print(f"\t\tcoords:{part_grid}")
+    # print(f"\t\ttemps grad_fn: {temps.grad_fn}, temps dtype: {temps.dtype}")
+    # print(f"\t\tcur_loss: {cur_loss.item():.6f}, requires_grad: {cur_loss.requires_grad}, grad_fn: {cur_loss.grad_fn}")
+    # print(f'\t loss_parts: {loss_parts}')
