@@ -119,7 +119,8 @@ def plot_predicted_temperature(loss, temps, power_np, xs, ys, title='', save_dir
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.contourf(xs, ys, temps, levels=50, cmap='hot')
     # ax.scatter(power_source.x, power_source.y, c='cyan', marker='x', s=100, label='Heat source')
-    ax.set_title(f'Predicted Temperature ({title}) (Loss: {loss.item()})')
+    # ax.set_title(f'Predicted Temperature ({title}) (Loss: {loss.item()})')
+    ax.set_title(f'Predicted Temperature ({title})')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.legend()
@@ -139,10 +140,10 @@ def plot_power_map_predictions(loss, temps, power_np, xs, ys, title, save_dir=No
     Plots predicted vs analytical temperature fields side by side.
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     im0 = axes[0].contourf(xs, ys, temps, levels=50, cmap='hot')
-    axes[0].set_title(f'Predicted Temperature (Loss: {loss.item()})')
+    axes[0].set_title(f'Predicted Temperature')
     axes[0].set_xlabel('x')
     axes[0].set_ylabel('y')
     fig.colorbar(im0, ax=axes[0], label='Temp')

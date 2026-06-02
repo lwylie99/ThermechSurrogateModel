@@ -104,8 +104,8 @@ class ThermalModel2D(Component):
 
     def _build_grid_map(self) -> Tensor:
         ''' MAPS PLATE TO GRID coords[i,j] = [x_cm, y_cm] '''
-        xs = torch.linspace(0, self.plate.length, self.grid.length)
-        ys = torch.linspace(0, self.plate.width, self.grid.width)
+        xs = torch.linspace(0, self.plate.width, self.grid.width)
+        ys = torch.linspace(0, self.plate.length, self.grid.length)
         yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (rows, cols) each
         return torch.stack([xx, yy], dim=-1)  # (rows, cols, 2)
 

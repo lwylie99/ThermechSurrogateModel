@@ -38,8 +38,8 @@ class PowerMapPlateModel(ThermalModel2D):
             cur_loss = paired_loss(pred_temps, act_temps)
             preds_np = pred_temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
 
-        xs = np.linspace(0, self.plate.length, self.grid.length)
-        ys = np.linspace(0, self.plate.width, self.grid.width)
+        xs = torch.linspace(0, self.plate.length, self.grid.length)
+        ys = torch.linspace(0, self.plate.width, self.grid.width)
 
         if plot:
             return cur_loss, preds_np, xs, ys
@@ -62,7 +62,7 @@ class PowerMapPlateModel(ThermalModel2D):
             xs = np.linspace(0, self.plate.length, self.grid.length)
             ys = np.linspace(0, self.plate.width, self.grid.width)
             power_np = power_map.cpu().detach().numpy().reshape(self.grid.length, self.grid.width)
-            temps_np = temps.cpu().detach().numpy().reshape(self.grid.length, self.grid.width)
+            temps_np = temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
             return total_loss, temps_np, power_np, xs, ys
 
         return total_loss
