@@ -15,7 +15,8 @@ class PowerSource(ModularComponent):
     conv_type: str = 'PowerSource'
     internal: bool = True
 
-
+# Need to provide power [W] and convert to amplitude [W/m^2]
+# For 2D plane: amplitude = power / (2 * pi() * spread^2)
 @dataclass
 class Gaussian(PowerSource):
     ''' data for a guassian power source '''
@@ -48,6 +49,7 @@ class PdeCore(BoundaryCondition):
 class GaussianPde(PdeCore):
     conv_type: str = 'GaussianPde'
     power_map: Tensor = None
+    # amplitude = power / (2 * pi() * spread^2)
 
     def build_power_map(self, coords, power: List[Gaussian], device):
         ''' gaussian heat source: Q(x,y) = A * exp(-((x-x0)^2 + (y-y0)^2) / (2*sigma^2)) '''
