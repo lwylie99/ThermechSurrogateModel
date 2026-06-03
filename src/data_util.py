@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from typing import TypeVar, Generic, Any
 
 import numpy as np
-from torch import Tensor
+import torch
+from torch import Tensor, float32
 
 from pathlib import Path
 
@@ -24,12 +25,11 @@ class DataPair(Generic[T]):
 
 class PMPair(DataPair[np.ndarray]):
     ''' for power map input and temp map output pairs '''
-    def load_data(self, name: str, p_map: np.ndarray, t_map: np.ndarray):
-        # TODO: MAGGIE - read in from file
-        self.name = name
-        self.input = p_map            # numpy array power map
-        self.solution = t_map   # numpy array analytical temps
-        return self
+    def get_tensors(self, device):
+        return (
+            torch.tensor(self.input.reshape(-1), dtype=float32).to(device),
+            torch.tensor(self.solution.reshape(-1), dtype=float32).to(device)
+        )
 
 # TODO: MAGGIE CONTEXT --> called by power_map_model
 def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
@@ -40,11 +40,10 @@ def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
     case_names = [f"Case_{i}" for i in range(p_maps.shape[0])]
     
     for i in range(p_maps.shape[0]):
-        pair = PMPair()
-        pair.load_data(
+        pair = PMPair(
             name=case_names[i],
-            p_map=p_maps[i].reshape(-1),
-            t_map=t_maps[i].reshape(-1),
+            input=p_maps[i].reshape(-1),
+            solution=t_maps[i].reshape(-1),
         )
         pairs.append(pair)
         

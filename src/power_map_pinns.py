@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from data_util import DataPair
+from data_util import DataPair, PMPair
 from loss import paired_loss
 from pinns import ThermalModel2D
 from src.components import PartSet
@@ -68,7 +68,7 @@ class PowerMapPlateModel(ThermalModel2D):
         return total_loss
 
 
-    def train_model(self, power_data: list[Gaussian], paired_data: list[DataPair[np.ndarray]]=[], epochs=24) -> pd.DataFrame:
+    def train_model(self, power_data: list[Gaussian], paired_data: list[PMPair]=[], epochs=24) -> pd.DataFrame:
         pair_loss_hist = []
         last_loss, loss_hist = self._train_plate(power_data[0], 1)
         best_loss = last_loss
@@ -87,7 +87,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
             random.shuffle(paired_shuffle)
             for p in paired_shuffle:
-                print(f'EPOCH: {e}, pair: ', p)
+                print(f'EPOCH: {e}, pair: ', p.name)
                 last_loss, p_losses = self._train_pair(p, sub_e)
                 best_loss = min(best_loss, last_loss)
                 pair_loss_hist = pair_loss_hist + p_losses
@@ -112,7 +112,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return pd.DataFrame(loss_hist)
 
-    def _train_pair(self, pair: DataPair[np.ndarray], epochs=10):
+    def _train_pair(self, pair: PMPair, epochs=10):
         ''' train across all points on plate '''
         if self.model is None:
             self.default_model()
@@ -123,9 +123,9 @@ class PowerMapPlateModel(ThermalModel2D):
         total_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         for e in range(epochs):
             self.optimizer.zero_grad()
-            mod_in = self._build_input(power_map=torch.Tensor(pair.input))
+            power, act_temps = pair.get_tensors(self.device)
+            mod_in = self._build_input(power_map=power)
             pred_temps = self._model(mod_in)
-            act_temps = torch.Tensor(pair.solution)
             cur_loss = paired_loss(pred_temps, act_temps)
 
             self._apply_loss(cur_loss)
@@ -184,6 +184,7 @@ class PowerMapPlateModel(ThermalModel2D):
             power_map = power_map[power_mask]
         if power_map.dim() == 1:
             power_map = power_map.unsqueeze(-1)
+
         if not coords.shape[0] == power_map.shape[0]:
             print(f"WARNING: coords ({coords.shape}) and power_map ({power_map.shape}) should be same length")
 
