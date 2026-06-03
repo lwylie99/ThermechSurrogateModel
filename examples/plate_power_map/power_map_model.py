@@ -50,9 +50,10 @@ power_sources = [
 
 # TODO: MAGGIE CONTEXT --> where analytical pairs are pulled from storage
 # returns none if empty dir
-pairs = data_util.load_pwrmp_data(Path(r'./ground_truth').resolve())
+pairs = data_util.load_pwrmp_data()
 example_util.train_example(
     model, power_sources, pairs,
-    epochs=1000, save_dir=train_dir
+    epochs=24, save_dir=train_dir
 )
+# Evaluate physics-only
 example_util.eval_plate_example(model, power_sources, train_dir)
