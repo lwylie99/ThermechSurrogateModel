@@ -182,7 +182,8 @@ class PowerMapPlateModel(ThermalModel2D):
         else:
             power_mask = self._mask(part)
             power_map = power_map[power_mask]
-
+        if power_map.dim() == 1:
+            power_map = power_map.unsqueeze(-1)
         if not coords.shape[0] == power_map.shape[0]:
             print(f"WARNING: coords ({coords.shape}) and power_map ({power_map.shape}) should be same length")
 
