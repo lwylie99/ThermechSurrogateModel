@@ -5,6 +5,11 @@ from typing import TypeVar, Generic, Any
 import numpy as np
 from torch import Tensor
 
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+sol_path = root / "ground_truth"
+
 T = TypeVar('T')
 
 @dataclass
@@ -19,7 +24,7 @@ class DataPair(Generic[T]):
 
 class PMPair(DataPair[np.ndarray]):
     ''' for power map input and temp map output pairs '''
-    def load(self, name: str, p_map: np.ndarray, t_map: np.ndarray):
+    def load_data(self, name: str, p_map: np.ndarray, t_map: np.ndarray):
         # TODO: MAGGIE - read in from file
         self.name = name
         self.input = p_map            # numpy array power map
@@ -27,19 +32,19 @@ class PMPair(DataPair[np.ndarray]):
         return self
 
 # TODO: MAGGIE CONTEXT --> called by power_map_model
-def load_pwrmp_data(load_dir) -> list[PMPair]:
+def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
     ''' reads in all data in dir and returns list of pairs '''
     pairs = []
-    p_maps = np.load(os.path.join(load_dir, "powermaps.npy"))
-    t_maps = np.load(os.path.join(load_dir, "temperature.npy"))
+    p_maps = np.load(load_dir / "powermaps.npy")
+    t_maps = np.load(load_dir / "temperature.npy")
     case_names = [f"Case_{i}" for i in range(p_maps.shape[0])]
     
     for i in range(p_maps.shape[0]):
         pair = PMPair()
         pair.load_data(
             name=case_names[i],
-            p_map=p_maps[i],
-            t_map=t_maps[i]
+            p_map=p_maps[i].reshape(-1),
+            t_map=t_maps[i].reshape(-1),
         )
         pairs.append(pair)
         

@@ -31,12 +31,17 @@ Ta = 25.0  # Ambient temperature [°C]
 # Resolution Control (Number of terms in Fourier expansion)
 N_max = 50  # x-direction terms
 M_max = 50  # y-direction terms
-Nx, Ny = 200, 200  # Mesh grid resolution for plotting
+Nx, Ny = 22, 22  # Mesh grid resolution for input-output pairs
+Nx_plot, Ny_plot = 200, 200
 
 # Setup spatial grid matrices
 x_vec = np.linspace(0, L, Nx)
 y_vec = np.linspace(0, W, Ny)
 X, Y = np.meshgrid(x_vec, y_vec)
+
+x_plot = np.linspace(0, L, Nx_plot)
+y_plot = np.linspace(0, W, Ny_plot)
+X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 
 # Boundary Conditions (BCs)
 # Note: For Neumann use val (thermal conductivity) = 0 (fully insulated) - non-zero heat flux not functional
@@ -173,7 +178,7 @@ def eval_norm(w, beta_1, L):
     return (L / 2.0) * (1.0 + c**2) + (np.sin(2.0 * w * L) / (4.0 * w)) * (1.0 - c**2) + (c / w) * (np.sin(w * L)**2)
 
 
-def build_power_map(x, y, mus, sigmas, amplitudes):
+def build_power_map(x, y, mus, sigmas, amplitudes, clip_threshold = 1e-4):
 
     Xp, Yp = np.meshgrid(x, y, indexing="xy")
     P = np.zeros_like(Xp)
@@ -184,8 +189,8 @@ def build_power_map(x, y, mus, sigmas, amplitudes):
             / (2 * sigma**2)
         )
 
-    # Convert P from W/m^2 to W/mm^2 for ML input
-    return P*1e-6
+    P[P < clip_threshold] = 0.0
+    return P
 
 # =============================================================================
 # 4. EXECUTE SAMPLE
@@ -233,6 +238,14 @@ for case in sampling_plan:
         amps_sources
     )
 
+    P_plot =  build_power_map(
+        x_plot,
+        y_plot,
+        mus_sources,
+        sigmas_sources,
+        amps_sources
+    )
+
     # Calculate eigenvalue arrays
     lambdas = get_eigenvalues(beta_L, beta_R, L, N_max)
     mus = get_eigenvalues(beta_B, beta_T, W, M_max)
@@ -240,6 +253,7 @@ for case in sampling_plan:
     
     # Initialize array with ambient background temperature
     T = np.zeros_like(X) + Ta
+    T_plot = np.zeros_like(X_plot) + Ta
 
 
     # Field reconstruction (Series summation)
@@ -250,6 +264,7 @@ for case in sampling_plan:
             continue
         N_n = eval_norm(lam_n, beta_L, L)
         X_n = eval_eigenfunction(X, lam_n, beta_L)
+        X_n_plot = eval_eigenfunction(X_plot, lam_n, beta_L)
 
         for m, mu_m in enumerate(mus):
             if mu_m == 0.0 and beta_B != 0.0:
@@ -285,9 +300,11 @@ for case in sampling_plan:
 
             # Project spatial Y function across the grid
             Y_m_Y = eval_eigenfunction(Y, mu_m, beta_B)
+            Y_m_plot = eval_eigenfunction(Y_plot, mu_m, beta_B)
 
             # Accumulate component superposition into total matrix
             T += a_nm * X_n * Y_m_Y
+            T_plot += a_nm * X_n_plot * Y_m_plot
 
     results.append({
         "Case":     f"Case {case['num']}",
@@ -317,9 +334,9 @@ for case in sampling_plan:
 
     # Power Map (Input) - LEFT
     contour_P = ax1.contourf(
-        X * 1e3,
-        Y * 1e3,
-        P,
+        X_plot * 1e3,
+        Y_plot * 1e3,
+        P_plot * 1e-6,
         levels=65,
         cmap="viridis"
     )
@@ -343,7 +360,7 @@ for case in sampling_plan:
     ax1.set_ylabel("Y [mm]")
 
     # Temperature Filed (Output) - RIGHT
-    contour_T = ax2.contourf(X * 1e3, Y * 1e3, T, levels=65, cmap="turbo")
+    contour_T = ax2.contourf(X_plot * 1e3, Y_plot * 1e3, T_plot, levels=65, cmap="turbo")
     cbar = fig.colorbar(contour_T, ax=ax2)
     cbar.set_label("Temperature [°C]", fontsize=11)
 
