@@ -15,6 +15,9 @@ class PowerSource(ModularComponent):
     conv_type: str = 'PowerSource'
     internal: bool = True
 
+    def title(self):
+        return f'{self.conv_type} at ({self.x}, {self.y})'
+
 # Need to provide power [W] and convert to amplitude [W/m^2]
 # For 2D plane: amplitude = power / (2 * pi() * spread^2)
 @dataclass
@@ -25,6 +28,8 @@ class Gaussian(PowerSource):
     amplitude: float = None
     spread: float = None
 
+    def title(self):
+        return f'{self.conv_type} at ({self.x}, {self.y}), A={self.amplitude}, σ={self.spread}'
 
 @dataclass
 class BoundaryCondition(Component):
@@ -60,14 +65,26 @@ class GaussianPde(PdeCore):
         x, y = coords[:, 0:1], coords[:, 1:2]  # (N, 1)
         x0, y0 = location[..., 0:1], location[..., 1:2]  # (M, 1) or (1,)
         r2 = (x - x0) ** 2 + (y - y0) ** 2  # (N, M) or (N, 1)
-        Q = amplitude * torch.exp(-r2 / (2 * spread ** 2))
+        # amplitude
+        Q = amplitude * torch.exp(-r2 / (2 * spread**2))
 
-        self.power_map = Q.sum(dim=-1, keepdim=True).detach().requires_grad_(True)  # (N, 1) — sum over all sources
+        self.power_map = Q.sum(dim=-1, keepdim=True).detach() #.requires_grad_(True)  # (N, 1) — sum over all sources
+        return self.power_map
 
     def loss(self, u, coords, k) -> Tensor:
         ''' Enforces: k * ∇²u + Q(x,y) = 0 -> residual: k * ∇²u + Q = 0 '''
         jac, u_laplace = laplacian_jacobian(u, coords, k)
+
+        # print(f"  lap: shape={u_laplace.shape}, mean={u_laplace.mean():.4f}, std={u_laplace.std():.4f}, range=[{u_laplace.min():.4f}, {u_laplace.max():.4f}]")
+        # print(f"  Q: shape={self.power_map.shape}, mean={self.power_map.mean():.4f}")  # add in loss() instead
+
+        # residuals are too weak at low temp areas, need to make sure they are weighted heavier
         residual = (u_laplace + self.power_map).squeeze()
+
+        # weights = 1.0 / (self.power_map.squeeze().abs() + 1e-4)
+        # weights = weights / weights.mean()
+
+        # return (weights * (residual**2)).mean()
         return residual_mse(residual)
 
 @dataclass
