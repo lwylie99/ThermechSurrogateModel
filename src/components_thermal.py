@@ -115,12 +115,15 @@ class Robin(Edge):
     ''' convection: ambient/fluid temperature '''
     conv_type: str = 'Robin'
     ambient: float = None
+    h: float = None
 
     def loss(self, u, coords, k) -> Tensor:
         ''' convective cooling (Newton's law of cooling)
-        Enforces: u - ambient + direction * k * ∂u/∂n = 0
+        Enforces: h * (u - ambient) + direction * k * ∂u/∂n = 0
         '''
         u_jac = jacobian(u, coords)
-        u_jac = self.direction * k * u_jac[..., self.axis]
-        residual = (u.squeeze() - self.ambient + u_jac).squeeze()
+        flux_term = self.direction * k * u_jac[..., self.axis]
+        convection_term = self.h * (u.squeeze() - self.ambient)
+        
+        residual = (convection_term + flux_term.squeeze()).squeeze()
         return residual_mse(residual)

@@ -1,0 +1,63 @@
+import os
+from dataclasses import dataclass
+from typing import TypeVar, Generic, Any
+
+import numpy as np
+from torch import Tensor
+
+T = TypeVar('T')
+
+@dataclass
+class DataPair(Generic[T]):
+    ''' for input output pairs '''
+    name: str = None
+    input: T = None
+    solution: np.ndarray = None
+
+    def load(self, filename, load_dir):
+        return None
+
+class PMPair(DataPair[np.ndarray]):
+    ''' for power map input and temp map output pairs '''
+    def load(self, name: str, p_map: np.ndarray, t_map: np.ndarray):
+        # TODO: MAGGIE - read in from file
+        self.name = name
+        self.input = p_map            # numpy array power map
+        self.solution = t_map   # numpy array analytical temps
+        return self
+
+# TODO: MAGGIE CONTEXT --> called by power_map_model
+def load_pwrmp_data(load_dir) -> list[PMPair]:
+    ''' reads in all data in dir and returns list of pairs '''
+    pairs = []
+    p_maps = np.load(os.path.join(load_dir, "powermaps.npy"))
+    t_maps = np.load(os.path.join(load_dir, "temperature.npy"))
+    case_names = [f"Case_{i}" for i in range(p_maps.shape[0])]
+    
+    for i in range(p_maps.shape[0]):
+        pair = PMPair()
+        pair.load_data(
+            name=case_names[i],
+            p_map=p_maps[i],
+            t_map=t_maps[i]
+        )
+        pairs.append(pair)
+        
+    return pairs
+
+# Merged load_pwrmp and load_paired so commenting this for now
+# def load_paired_data(load_dir) -> list[DataPair]:
+#     ''' reads in all data in dir and returns list of pairs '''
+#     pairs = []
+#     i = 0
+#     for f in os.listdir(load_dir):
+#         pair = DataPair().load(f, load_dir)
+#         pairs.append(pair)
+#         i += 1
+#     return pairs
+
+def clear_dir(dir_path):
+    for filename in os.listdir(dir_path):
+        file_path = os.path.join(dir_path, filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)

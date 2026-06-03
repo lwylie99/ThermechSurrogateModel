@@ -289,9 +289,6 @@ for case in sampling_plan:
             # Accumulate component superposition into total matrix
             T += a_nm * X_n * Y_m_Y
 
-    # Save raw data
-    np.save(os.path.join(output_dir, f"{fname}_T.npy"), T)
-
     results.append({
         "Case":     f"Case {case['num']}",
         "Label":    case["label"],
@@ -409,15 +406,13 @@ df_output.to_csv(
 
 all_T = np.array([item["T"] for item in results_full])
 print(all_T.shape)
-np.save(
-    os.path.join(output_dir, "temperature.npy"),
+np.save("temperature.npy",
     all_T
 )
 
 all_P = np.array([item["P"] for item in results_full])
 print(all_P.shape)
-np.save(
-    os.path.join(input_dir, "powermaps.npy"),
+np.save("powermaps.npy",
     all_P
 )
 
