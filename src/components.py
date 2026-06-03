@@ -68,7 +68,7 @@ class NDComponent(ModularComponent):
         core=(slice(1, -1), slice(1, -1))
     )
     # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
-    axis = EdgeSet(top=0, bottom=0, left=1, right=1)
+    axis = EdgeSet(top=1, bottom=1, left=0, right=0)
     # direction of normal vector pointing outward
     out = EdgeSet(top=1, bottom=-1, left=-1, right=1)
 
