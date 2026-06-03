@@ -10,6 +10,7 @@ from power_map_pinns import PowerMapPlateModel
 from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
 from src.mediums import Medium, Grid
 from src.pinns import SingleGaussPlateModel
+import numpy as np
 
 # define copper plate
 # TODO: add weighting to loss
@@ -17,11 +18,12 @@ plate = Medium(conduction=0.3, length=40.0, width=40.0)
 plate.setConditions(PartSet(
     top=Insulated(),
     bottom=Insulated(),
-    left=Robin(ambient=25.0),
-    right=Robin(ambient=25.0),
+    left=Robin(h=10.0, ambient = 25.0),
+    right=Robin(h=10.0, ambient = 25.0),
     core=GaussianPde()
 ))
 grid = Grid(plate, units=2.0)
+# I added h (convection coefficient) to the definition of Robin so we will have to figure out 
 
 model_dir = Path(r'./checkpoints').resolve()
 data_util.clear_dir(model_dir)
@@ -50,7 +52,7 @@ power_sources = [
 
 # TODO: MAGGIE CONTEXT --> where analytical pairs are pulled from storage
 # returns none if empty dir
-pairs = data_util.load_pwrmp_data(Path(r'./paired_data').resolve())
+pairs = data_util.load_pwrmp_data(Path(r'./ground_truth').resolve())
 example_util.train_example(
     model, power_sources, pairs,
     epochs=100, save_dir=train_dir
