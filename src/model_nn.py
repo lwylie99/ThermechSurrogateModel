@@ -74,13 +74,12 @@ class ThermalModel2D(Component):
     grid_map: Tensor = None
 
     device = None
-    # fourier: FourierFeatures = None
     model: BasicMLP = None
     optimizer: optim.Optimizer = None
     scaler: amp.GradScaler = None
-    scaler_enabled: bool = False
 
-    # criterion: nn.Module = nn.MSELoss()
+    scaler_enabled: bool = False
+    core_only: bool = False    # if you want to train/eval core without BCs
 
     def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-4, wt_decay=1e-4, device='cuda:0'):
         device_str = device if torch.cuda.is_available() else "cpu"
@@ -91,10 +90,6 @@ class ThermalModel2D(Component):
 
         self.model = BasicMLP(num_in, num_out, num_blocks, num_hidden).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(),lr=1e-4, weight_decay=1e-4)
-        # self.fourier = FourierFeatures(2, 16, scale=3.0).to(self.device)
-        # self.optimizer = optim.Adam(
-        #     list(self.model.parameters()) + list(self.fourier.parameters()),
-        #     lr=1e-4, weight_decay=1e-4)
 
     def save_checkpoint(self, epoch, loss, name=''):
         self.model.save_checkpoint(epoch, self.optimizer, loss, self.model_dir, check_name=f'_epoch{epoch}_{name}')

@@ -141,6 +141,10 @@ class PowerMapPlateModel(ThermalModel2D):
             self.default_model()
         self.model.train()
 
+        parts = PartSet().keys(clean=False)
+        if self.core_only:
+            parts = ['core']
+
         # coords = self._coords('core').requires_grad_(True)
         self.plate.boundaries['core'].build_power_map(self.grid_map, [power], self.device)
         power_map = self.plate.boundaries['core'].power_map
@@ -152,7 +156,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
             loss_parts = dict()
             total_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-            for part in PartSet().keys(clean=False):
+            for part in parts:
                 bc = self.plate.boundaries[part]
                 if bc is None:
                     continue
