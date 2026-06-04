@@ -71,7 +71,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
     def train_model(self, power_data: list[Gaussian], paired_data: list[PMPair]=[], epochs=24) -> pd.DataFrame:
         pair_loss_hist = []
-        last_loss, loss_hist = self._train_plate(power_data[0], 1)
+        last_loss, loss_hist = float('inf'), []
         best_loss = last_loss
         power_shuffle = power_data.copy()
         paired_shuffle = paired_data.copy()
