@@ -138,7 +138,7 @@ class ThermalModel2D(Component):
             self.scaler.step(self.optimizer)
             self.scaler.update()
         else:
-            total_loss.backward()
+            total_loss.backward(retain_graph=True)
             self.optimizer.step()
 
 

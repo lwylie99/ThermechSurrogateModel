@@ -98,11 +98,11 @@ class PowerMapPlateModel(ThermalModel2D):
 
             if e % max(1, (epochs // 10)) == 0:
                 print('saving model checkpoint...')
-                self.save_checkpoint(e, last_loss)
+                # self.save_checkpoint(e, last_loss)
 
             if e >= epochs:
                 print('training complete, saving last checkpoint...')
-                self.save_checkpoint(e, last_loss)
+                # self.save_checkpoint(e, last_loss)
                 break
 
             sub_scale = min(20, sub_scale * 1.5)
@@ -133,7 +133,7 @@ class PowerMapPlateModel(ThermalModel2D):
             loss_parts['total'] = cur_loss.item()
             loss_list.append(loss_parts)
 
-        return total_loss, loss_list
+        return total_loss.item(), loss_list
 
     def _train_plate(self, power, epochs=10):
         ''' train across all points on plate '''
@@ -175,14 +175,14 @@ class PowerMapPlateModel(ThermalModel2D):
             if e == epochs - 1 or e % (epochs // 2) == 0:
                 print(f'\tPWR_EPOCH: {e}, total_loss: ', total_loss)
 
-        return total_loss, loss_list
+        return total_loss.item(), loss_list
 
     def _build_input(self, power_map, part=None, coords=None) -> torch.Tensor:
         if part is None and coords is None:
             coords = self.grid_map
-        # else: TODO: pairs should be read in as size of core
-        #     power_mask = self._mask(part)
-        #     power_map = power_map[power_mask]
+        else:
+            power_mask = self._mask(part)
+            power_map = power_map[power_mask]
 
         if not coords.shape[0] == power_map.shape[0]:
             print(f"WARNING: coords ({coords.shape}) and power_map ({power_map.shape}) should be same length")

@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import torch
 
-import data_util
 from components import Component
 from components_thermal import GaussianPde
 from data_util import DataPair
@@ -29,15 +28,15 @@ def eval_plate_example(model, power_data: list, save_dir=None):
         if isinstance(p, Component):
             title = p.title()
 
-        # total_loss, temps, power_np, xs, ys = model.eval_plate(p, plot=True)
-        # plot_power_map_predictions(
-        #     total_loss, temps, power_np, xs, ys,
-        #     title=title, save_dir=save_dir, save_suffix=f'_p{i}'
-        # )
+        total_loss, temps, power_np, xs, ys = model.eval_plate(p, plot=True)
+        plot_power_map_predictions(
+            total_loss, temps, power_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+        )
 
-        plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
+        # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
 
-def train_example(model, power_data:list, pairs:list=None, epochs=100, save_dir=None):
+def train_example(model, power_data:list, pairs:list=[], epochs=100, save_dir=None):
     print(f'\nBEGIN TRAINING ({epochs} Epochs)\n')
     loss_hist = model.train_model(power_data=power_data, paired_data=pairs, epochs=epochs)
     print(loss_hist)

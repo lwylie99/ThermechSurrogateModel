@@ -38,7 +38,7 @@ power_sources = [
 ]
 example_util.train_example(
     model, power_sources,
-    epochs=1000, save_dir=train_dir
+    epochs=10, save_dir=train_dir
 )
 
 ''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
