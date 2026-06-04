@@ -59,10 +59,11 @@ class PowerMapPlateModel(ThermalModel2D):
         total_loss = bc.loss(u=temps, coords=self.grid_map, k=self.plate.conduction)
 
         if plot:
-            xs = np.linspace(0, self.plate.length, self.grid.length)
-            ys = np.linspace(0, self.plate.width, self.grid.width)
+            xs = torch.linspace(0, self.plate.width, self.grid.width)
+            ys = torch.linspace(0, self.plate.length, self.grid.length)
             power_np = power_map.cpu().detach().numpy().reshape(self.grid.length, self.grid.width)
             temps_np = temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
+            print(f"plot shapes --> power: {power_np}, temps: {temps_np} ")
             return total_loss, temps_np, power_np, xs, ys
 
         return total_loss
@@ -182,8 +183,8 @@ class PowerMapPlateModel(ThermalModel2D):
         else:
             power_mask = self._mask(part)
             power_map = power_map[power_mask]
-        if power_map.dim() == 1:
-            power_map = power_map.unsqueeze(-1)
+        # if power_map.dim() == 1:
+        #     power_map = power_map.unsqueeze(-1)
 
         if not coords.shape[0] == power_map.shape[0]:
             print(f"WARNING: coords ({coords.shape}) and power_map ({power_map.shape}) should be same length")

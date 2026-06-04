@@ -27,8 +27,8 @@ class PMPair(DataPair[np.ndarray]):
     ''' for power map input and temp map output pairs '''
     def get_tensors(self, device):
         return (
-            torch.tensor(self.input.reshape(-1), dtype=float32).to(device),
-            torch.tensor(self.solution.reshape(-1), dtype=float32).to(device)
+            torch.tensor(self.input.flatten(), dtype=float32).unsqueeze(-1).to(device),
+            torch.tensor(self.solution.flatten(), dtype=float32).unsqueeze(-1).to(device)
         )
 
 # TODO: MAGGIE CONTEXT --> called by power_map_model
@@ -42,8 +42,8 @@ def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
     for i in range(p_maps.shape[0]):
         pair = PMPair(
             name=case_names[i],
-            input=p_maps[i].reshape(-1),
-            solution=t_maps[i].reshape(-1),
+            input=p_maps[i],
+            solution=t_maps[i],
         )
         pairs.append(pair)
         
