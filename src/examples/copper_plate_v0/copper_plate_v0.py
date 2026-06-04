@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 
-import data_util
-import example_util
+import util_data
+import util_example
 from components import PartSet
 from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
 from src.mediums import Medium, Grid
-from src.pinns import SingleGaussPlateModel
+from src.model_nn import SingleGaussPlateModel
 
 # define copper plate
 # TODO: add weighting to loss

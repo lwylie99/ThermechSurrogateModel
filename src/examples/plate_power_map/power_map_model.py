@@ -2,10 +2,10 @@ from pathlib import Path
 
 import numpy as np
 
-import data_util
-import example_util
+import util_data
+import util_example
 from components import PartSet
-from power_map_pinns import PowerMapPlateModel
+from power_map_model import PowerMapPlateModel
 from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
 from src.mediums import Medium, Grid
 
