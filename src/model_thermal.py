@@ -52,6 +52,7 @@ class PowerMapPlateModel(ThermalModel2D):
         self.model.eval()
 
         # with torch.no_grad():
+        # eval plate is always core only
         bc = self.plate.boundaries['core']
         power_map = bc.build_power_map(self.grid_map, [power], self.device)
         mod_in = self._build_input(power_map)

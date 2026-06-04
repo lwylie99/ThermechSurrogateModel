@@ -27,7 +27,7 @@ grid.width=20
 ''' DEFINE MODEL '''
 model_dir = Path(r'checkpoints').resolve()
 util_data.clear_dir(model_dir)
-model = PowerMapPlateModel(plate=plate, grid=grid, temp_scale=100, model_dir=model_dir)
+model = PowerMapPlateModel(plate=plate, grid=grid, temp_scale=100, model_dir=model_dir, core_only=True) # train on just core to troubleshoot
 model.default_model(num_blocks=6, num_hidden=512, lr=0.0001, wt_decay=0.0001, device='cuda:0')
 
 ''' TRAIN MODEL '''
@@ -44,7 +44,7 @@ util_example.train_example(
 )
 
 ''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
-# returns none if empty dir
-analytical_pairs = util_data.load_pwrmp_data(Path(r'../../ground_truth').resolve())
+# TODO: mag pls help
+analytical_pairs = util_data.load_pwrmp_data(Path(r'../../ground_truth').resolve()) # returns none if empty dir
 eval_data = [analytical_pairs[0]] # should match wih power_sources for initial case
-util_example.eval_plate_example(model, eval_data, train_dir)
+# util_example.eval_plate_example(model, eval_data, train_dir)
