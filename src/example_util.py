@@ -29,11 +29,13 @@ def eval_plate_example(model, power_data: list, save_dir=None):
         if isinstance(p, Component):
             title = p.title()
 
-        total_loss, temps, power_np, xs, ys = model.eval_plate(p, plot=True)
-        plot_power_map_predictions(
-            total_loss, temps, power_np, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_p{i}'
-        )
+        # total_loss, temps, power_np, xs, ys = model.eval_plate(p, plot=True)
+        # plot_power_map_predictions(
+        #     total_loss, temps, power_np, xs, ys,
+        #     title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+        # )
+
+        plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
 
 def train_example(model, power_data:list, pairs:list=None, epochs=100, save_dir=None):
     print(f'\nBEGIN TRAINING ({epochs} Epochs)\n')
@@ -174,8 +176,12 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
     model.model.eval()
+
+    bc = GaussianPde()
+    bc.build_power_map(grid_map, [power_source], model.device)
+    power_np = bc.power_map.cpu().detach().numpy().reshape(grid.length, grid.width)
     with torch.no_grad():
-        mod_in = model._build_input(power_source)
+        mod_in = model._build_input(bc.power_map)
         preds = model._model(mod_in)
         preds_np = preds.detach().cpu().numpy().reshape(grid.length, grid.width)
 
@@ -189,10 +195,6 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     axes[0].set_xlabel('x')
     axes[0].set_ylabel('y')
     fig.colorbar(im0, ax=axes[0], label='Temp')
-
-    bc = GaussianPde()
-    bc.build_power_map(grid_map, [power_source], model.device)
-    power_np = bc.power_map.cpu().detach().numpy().reshape(grid.length, grid.width)
 
     im1 = axes[1].contourf(xs, ys, power_np, levels=50, cmap='plasma')
     axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')

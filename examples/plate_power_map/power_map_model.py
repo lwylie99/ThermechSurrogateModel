@@ -52,6 +52,6 @@ power_sources = [
 pairs = data_util.load_pwrmp_data(Path(r'../../ground_truth').resolve())
 example_util.train_example(
     model, power_sources, pairs,
-    epochs=10, save_dir=train_dir
+    epochs=1000, save_dir=train_dir
 )
 example_util.eval_plate_example(model, power_sources, train_dir)
