@@ -24,7 +24,6 @@ class Medium(NDComponent):
             self.boundaries[part].direction = self.out[part]
 
 
-
 @dataclass
 class Grid(NDComponent):
     ''' sampling grid for a thermal medium '''

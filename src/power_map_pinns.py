@@ -180,20 +180,11 @@ class PowerMapPlateModel(ThermalModel2D):
     def _build_input(self, power_map, part=None, coords=None) -> torch.Tensor:
         if part is None and coords is None:
             coords = self.grid_map
-        else:
-            power_mask = self._mask(part)
-            power_map = power_map[power_mask]
-        if power_map.dim() == 1:
-            power_map = power_map.unsqueeze(-1)
+        # else: TODO: pairs should be read in as size of core
+        #     power_mask = self._mask(part)
+        #     power_map = power_map[power_mask]
 
         if not coords.shape[0] == power_map.shape[0]:
             print(f"WARNING: coords ({coords.shape}) and power_map ({power_map.shape}) should be same length")
 
         return torch.cat([coords, power_map], dim=-1)
-
-# def _train_plate(self, power: Gaussian, epochs=10, e_start=0) -> pd.DataFrame:
-# print(f"\tpart: {part.upper()}, part_grid -> shape: {part_grid.shape}, req_grad: {part_grid.requires_grad}, is_leaf: {part_grid.is_leaf}")
-# print(f"\t\tcoords:{part_grid}")
-# print(f"\t\ttemps grad_fn: {temps.grad_fn}, temps dtype: {temps.dtype}")
-# print(f"\t\tcur_loss: {cur_loss.item():.6f}, requires_grad: {cur_loss.requires_grad}, grad_fn: {cur_loss.grad_fn}")
-# print(f'\t loss_parts: {loss_parts}')

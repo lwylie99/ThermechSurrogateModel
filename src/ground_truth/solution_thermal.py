@@ -432,14 +432,14 @@ df_output.to_csv(
 all_T = np.array([item["T"] for item in results_full])
 print(all_T.shape)
 np.save("temperature.npy",
-    all_T
-)
+        all_T
+        )
 
 all_P = np.array([item["P"] for item in results_full])
 print(all_P.shape)
 np.save("powermaps.npy",
-    all_P
-)
+        all_P
+        )
 
 # =============================================================================
 # 6. SUMMARY FIGURE

@@ -22,9 +22,9 @@ plate.setConditions(PartSet(
 grid = Grid(plate, units=2.0)
 # I added h (convection coefficient) to the definition of Robin so we will have to figure out 
 
-model_dir = Path(r'./checkpoints').resolve()
+model_dir = Path(r'checkpoints').resolve()
 data_util.clear_dir(model_dir)
-train_dir = Path(r'./train_results').resolve()
+train_dir = Path(r'train_results').resolve()
 data_util.clear_dir(train_dir)
 
 model = PowerMapPlateModel(

@@ -20,9 +20,9 @@ plate.setConditions(PartSet(
 ))
 grid = Grid(plate, units=1)
 
-model_dir = Path(r'./checkpoints').resolve()
+model_dir = Path(r'checkpoints').resolve()
 data_util.clear_dir(model_dir)
-train_dir = Path(r'./train_results').resolve()
+train_dir = Path(r'train_results').resolve()
 data_util.clear_dir(train_dir)
 
 model = SingleGaussPlateModel(plate=plate, grid=grid, temp_scale=100, model_dir=model_dir)

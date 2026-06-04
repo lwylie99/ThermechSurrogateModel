@@ -44,26 +44,3 @@ def residual_mse(residual) -> Tensor:
 
 def paired_loss(pred, act) -> Tensor:
     return torch.nn.functional.mse_loss(pred, act)
-
-#
-# @dataclass
-# class PartLoss(PartSet):
-#     top: Tensor = None
-#     bottom: Tensor = None
-#     left: Tensor = None
-#     right: Tensor = None
-#     core: Tensor = None
-#     paired: Tensor = None
-#     total: Tensor = None
-#
-#
-# @dataclass
-# class WeightedLoss(Component):
-#     # TODO: add weighting to loss
-#     initial: float = 0.0
-#     edge: float = 1.0
-#     core: float = 1.0
-#     paired: float = 1.0
-
-    # def total_loss(self, loss: PartLoss) -> Tensor:
-    #     return torch.sum([for l in loss])
