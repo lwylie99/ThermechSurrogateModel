@@ -8,9 +8,7 @@ from components import PartSet, Component
 
 
 def gradients(y, x, create_graph=True, retain_graph=True):
-    return grad(
-        y,
-        x,
+    return grad(y, x,
         grad_outputs=torch.ones_like(y),
         create_graph=create_graph,
         retain_graph=retain_graph

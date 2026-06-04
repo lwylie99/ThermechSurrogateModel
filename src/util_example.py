@@ -5,7 +5,7 @@ import torch
 
 from components import Component
 from components_thermal import GaussianPde
-from data_util import DataPair
+from util_data import DataPair
 
 
 def eval_paired_example(model, power_data: list[DataPair], save_dir=None):
