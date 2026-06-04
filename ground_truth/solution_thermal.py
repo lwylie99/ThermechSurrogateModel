@@ -74,6 +74,7 @@ def case_filename(case):
 
 results = []
 results_full = []
+results_plot = []
 
 output_dir = "results"
 os.makedirs(output_dir, exist_ok=True)
@@ -328,6 +329,13 @@ for case in sampling_plan:
         "y_mm":     loc_y * 1e3,
         "P": P.copy(),
     })
+
+    results_plot.append({
+        "T_plot": T_plot,
+        "P_plot": P_plot,
+        "num": case["num"],
+        "label": case["label"],
+    })
     
     # Individual case plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7), subplot_kw={'box_aspect': 1})
@@ -452,13 +460,13 @@ fig.suptitle(
     linespacing=1.6,
 )
  
-global_min = min(np.min(item["T"]) for item in results_full)
-global_max = max(np.max(item["T"]) for item in results_full)
+global_min = min(np.min(item["T_plot"]) for item in results_plot)
+global_max = max(np.max(item["T_plot"]) for item in results_plot)
  
 last_contour = None
-for ax, item in zip(axes_flat, results_full):
+for ax, item in zip(axes_flat, results_plot):
     last_contour = ax.contourf(
-        X * 1e3, Y * 1e3, item["T"],
+        X_plot * 1e3, Y_plot * 1e3, item["T_plot"],
         levels=65,
         cmap="turbo",
         vmin=global_min,
