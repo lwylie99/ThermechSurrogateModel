@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from data_util import DataPair, PMPair
+from util_data import DataPair, PMPair
 from loss import paired_loss
-from pinns import ThermalModel2D
+from model_nn import ThermalModel2D
 from src.components import PartSet
 from src.components_thermal import Gaussian
 
