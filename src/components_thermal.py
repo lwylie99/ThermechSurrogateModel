@@ -77,6 +77,15 @@ class GaussianPde(PdeCore):
         residual = (u_laplace + self.power_map).squeeze()
         return residual_mse(residual)
 
+    def pointwise_loss(self, u, coords, k) -> Tensor:
+        """
+        Enforces: k * ∇²u + Q(x,y) = 0
+        Returns the raw, un-reduced residual vector for plotting/troubleshooting.
+        """
+        jac, u_laplace = laplacian_jacobian(u, coords, k)
+        residual = (u_laplace + self.power_map).squeeze()
+        return residual
+
 @dataclass
 class Edge(BoundaryCondition):
     ''' edges enforce residuals of 0 '''

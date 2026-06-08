@@ -12,8 +12,8 @@ def eval_paired_example(model, power_data: list[DataPair], save_dir=None):
     for i in range(len(power_data)):
         p = power_data[i]
         title = p.name
-
         cur_loss, preds_np, xs, ys = model.eval_pair(p, plot=True)
+
         # TODO: MAGGIE - see funct def for more detail
         plot_paired_predictions(
             cur_loss, preds_np, xs, ys,
@@ -28,10 +28,22 @@ def eval_plate_example(model, power_data: list, save_dir=None):
         if isinstance(p, Component):
             title = p.title()
 
-        total_loss, temps, power_np, xs, ys = model.eval_plate(p, plot=True)
+        total_loss, temps, power_np, residuals_np, xs, ys = model.eval_plate(p, plot=True)
         plot_power_map_predictions(
             total_loss, temps, power_np, xs, ys,
             title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+        )
+
+        if hasattr(p, 'solution'):
+            truth_np = p.solution.reshape(model.grid.length, model.grid.width)
+            plot_paired_predictions(
+                temps, truth_np, xs, ys,
+                title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
+            )
+
+        plot_pde_residuals(
+            residuals_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_res_{i}'
         )
 
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
@@ -97,15 +109,47 @@ def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
 
 # TODO: MAGGIE - this would be the plot comparing predictions
 #  (it can call other places if you want, just need the function to pass through here)
-def plot_paired_predictions(loss, preds_np, xs, ys, title='', save_dir=None, save_suffix=''):
+def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None, save_suffix=''):
     # place holder --> could replace w something like
     # ground_truth_class.maggie_plot_function(loss, preds_np, xs, ys)
-    plot_predicted_temperature(loss, preds_np, None, xs, ys, title, save_dir, save_suffix)
 
-    if save_dir: # can remove if want
-        path = save_dir / f'paired_prediction_temps{save_suffix}.png'
+    # Calculate absolute error
+    error_np = np.abs(preds_np - truth_np)
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+    # 1. Use a shared scale for Pred and Truth for an honest visual comparison
+    vmin = min(preds_np.min(), truth_np.min())
+    vmax = max(preds_np.max(), truth_np.max())
+    levels = np.linspace(vmin, vmax, 50)
+
+    # Panel 1: Prediction
+    im0 = axes[0].contourf(xs, ys, preds_np, levels=levels, cmap='hot')
+    axes[0].set_title(f'PINN Prediction\nRange: [{preds_np.min():.1f}, {preds_np.max():.1f}]')
+    fig.colorbar(im0, ax=axes[0])
+
+    # Panel 2: Analytical (Ground Truth)
+    im1 = axes[1].contourf(xs, ys, truth_np, levels=levels, cmap='hot')
+    axes[1].set_title(f'Analytical Truth\nRange: [{truth_np.min():.1f}, {truth_np.max():.1f}]')
+    fig.colorbar(im1, ax=axes[1])
+
+    # Panel 3: Absolute Error
+    # Using 'viridis' or 'plasma' helps highlight where the delta is highest
+    im2 = axes[2].contourf(xs, ys, error_np, levels=50, cmap='viridis')
+    axes[2].set_title(f'Absolute Error\nMean: {np.mean(error_np):.2e}')
+    fig.colorbar(im2, ax=axes[2])
+
+    for ax in axes:
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+
+    plt.suptitle(title, fontsize=14)
+    plt.tight_layout()
+
+    if save_dir:
+        path = save_dir / f'analytical_comparison{save_suffix}.png'
         plt.savefig(path, dpi=150)
-        print(f'Saved to {path}')
+        print(f'Saved comparison to {path}')
 
     plt.show()
 
@@ -250,5 +294,35 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
         path = save_dir / f'temperature_comparison_{suffix}.png'
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
+
+    plt.show()
+
+def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffix=''):
+    fig, ax = plt.subplots(figsize=(7, 6))
+    max_bound = np.max(np.abs(residuals_np))
+
+    # Avoid a divide-by-zero or flat scale if residuals are exactly 0 everywhere
+    if max_bound == 0:
+        max_bound = 1.0
+
+    # 'RdBu_r' gives Red for positive, Blue for negative, White for 0
+    im = ax.contourf(
+        xs, ys, residuals_np,
+        levels=50,
+        cmap='RdBu_r',
+        vmin=-max_bound,
+        vmax=max_bound
+    )
+
+    ax.set_title(f'PDE Residual Map ({title})\nRange: [{np.min(residuals_np):.2e}, {np.max(residuals_np):.2e}]')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    cbar = fig.colorbar(im, ax=ax, label='k∇²u + Q')
+    plt.tight_layout()
+
+    if save_dir:
+        path = save_dir / f'pde_residuals{save_suffix}.png'
+        plt.savefig(path, dpi=150)
+        print(f'Saved signed residual map to {path}')
 
     plt.show()
