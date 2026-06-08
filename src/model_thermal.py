@@ -54,18 +54,21 @@ class PowerMapPlateModel(ThermalModel2D):
         # with torch.no_grad():
         # eval plate is always core only
         bc = self.plate.boundaries['core']
-        power_map = bc.build_power_map(self.grid_map, [power], self.device)
+        coords = self.grid_map.clone().detach().requires_grad_(True) # enables tracking for pointwise loss
+        power_map = bc.build_power_map(coords, [power], self.device)
         mod_in = self._build_input(power_map)
         temps = self._model(mod_in)
-        total_loss = bc.loss(u=temps, coords=self.grid_map, k=self.plate.conduction)
+        total_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
 
         if plot:
+            raw_residuals = bc.pointwise_loss(u=temps, coords=coords, k=self.plate.conduction)
             xs = np.linspace(0, self.plate.length, self.grid.length)
             ys = np.linspace(0, self.plate.width, self.grid.width)
             power_np = power_map.cpu().detach().numpy().reshape(self.grid.length, self.grid.width)
             temps_np = temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
-            print(f"plot shapes --> power: {power_np.shape}, temps: {temps_np.shape} ")
-            return total_loss, temps_np, power_np, xs, ys
+            residuals_np = raw_residuals.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
+            print(f"plot shapes --> power: {power_np.shape}, temps: {temps_np.shape}, residuals: {residuals_np.shape} ")
+            return total_loss, temps_np, power_np, residuals_np, xs, ys
 
         return total_loss
 
