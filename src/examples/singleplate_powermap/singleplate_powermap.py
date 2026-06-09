@@ -31,7 +31,7 @@ model = PowerMapPlateModel(
     plate=plate, grid=grid, temp_scale=100,
     model_dir=model_dir, core_only=True
 ) # train on just core to troubleshoot
-model.default_model(num_blocks=9, num_hidden=512, lr=1e-4, wt_decay=1e-4, device='cuda:0')
+model.default_model(num_blocks=7, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda')
 
 ''' TRAIN MODEL '''
 train_dir = Path(r'results').resolve()
@@ -43,7 +43,7 @@ power_sources = [
 ]
 util_example.train_example(
     model, power_sources,
-    epochs=1000, save_dir=train_dir
+    epochs=10, save_dir=train_dir
 )
 util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 

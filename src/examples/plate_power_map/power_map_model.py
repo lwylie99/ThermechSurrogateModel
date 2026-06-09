@@ -31,7 +31,7 @@ model = PowerMapPlateModel(
     plate=plate, grid=grid, temp_scale=100, model_dir=model_dir,
 )
 model.default_model(
-    num_blocks=6, num_hidden=512, lr=0.0001, wt_decay=0.0001, device='cuda:0'
+    num_blocks=6, num_hidden=512, lr=0.0001, wt_decay=0.0001, device='cuda'
 )
 fixed_spread, fixed_power = plate.length / 6, 5.0
 fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)

@@ -78,18 +78,16 @@ class ThermalModel2D(Component):
     device = None
     model: BasicMLP = None
     optimizer: optim.Optimizer = None
-    scaler: amp.GradScaler = None
 
-    scaler_enabled: bool = False
     core_only: bool = False    # if you want to train/eval core without BCs
 
-    def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-4, wt_decay=1e-4, device='cuda:0'):
+    def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-4, wt_decay=1e-4, device='cuda'):
         device_str = device if torch.cuda.is_available() else "cpu"
         torch.cuda.empty_cache()
         self.device = torch.device(device_str)
-        self.scaler = amp.GradScaler(device_str)
         self.grid_map = self._build_grid_map().to(self.device).requires_grad_(True)
 
+        # TODO: add testing of initialized weights?
         self.model = BasicMLP(num_in, num_out, num_blocks, num_hidden).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=wt_decay)
 
@@ -117,11 +115,11 @@ class ThermalModel2D(Component):
 
     def _coords(self, part=None) -> Tensor:
         if part is None:
-            return self.grid_map.clone().detach().requires_grad_(True)
+            return self.grid_map.clone()
 
         mask = self._grid_mask(part)
         coords = self.grid_map.clone()
-        return coords[mask].detach().requires_grad_(True)
+        return coords[mask]
 
     def _model_parts(self, model_input: Tensor) -> torch.Tensor:
         return torch.Tensor()
@@ -136,13 +134,8 @@ class ThermalModel2D(Component):
         return predictions
 
     def _apply_loss(self, total_loss: Tensor):
-        if self.scaler_enabled:
-            self.scaler.scale(total_loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-        else:
-            total_loss.backward(retain_graph=True)
-            self.optimizer.step()
+        total_loss.backward(retain_graph=True)
+        self.optimizer.step()
 
 
 
@@ -157,7 +150,7 @@ class ThermalModel2D(Component):
 #         - temp/stress at (x,y)
 #     '''
 #
-#     def default_model(self, num_blocks=6, num_hidden=256, device='cuda:0'):
+#     def default_model(self, num_blocks=6, num_hidden=256, device='cuda'):
 #         self.build_model(6, 1, num_blocks, 512, device)
 #
 #     def eval_model(self, power: list[Gaussian], plot=True, save_dir=None):
