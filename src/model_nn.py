@@ -40,6 +40,7 @@ class BasicMLP(nn.Module):
                 nn.Dropout(dropout)
             ]
             nn.init.xavier_uniform_(layers[-1].weight)
+            nn.init.zeros_(layers[-1].bias)
             l_in = l_out
 
         layers += [nn.Linear(l_in, num_out)]
