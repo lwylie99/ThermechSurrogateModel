@@ -27,27 +27,31 @@ class FourierFeatures(nn.Module):
 class BasicMLP(nn.Module):
     ''' MLP with tanh activation and logits as output '''
 
-    def __init__(self, num_in, num_out, num_blocks, num_hidden, dropout=0.01):
+    def __init__(self, num_in, num_out, num_blocks, num_hidden, dropout=0.05):
         super().__init__()
 
-        layers = []
+        self.layers = []
         l_in, l_out = num_in, num_hidden
         for i in range(num_blocks - 1):
             l_out = num_hidden
-            layers += [
+            self.layers += [
                 nn.Linear(l_in, l_out),
                 nn.Tanh(),
                 nn.Dropout(dropout)
             ]
-            nn.init.xavier_uniform_(layers[-1].weight)
-            nn.init.zeros_(layers[-1].bias)
             l_in = l_out
 
-        layers += [nn.Linear(l_in, num_out)]
-        self.network = nn.Sequential(*layers)
+        self.layers += [nn.Linear(l_in, num_out)]
+        self.network = nn.Sequential(*self.layers)
 
     def forward(self, x):
         return self.network(x)
+
+    def init_rand_wts(self):
+        for l in self.layers:
+            nn.init.xavier_uniform_(l.weight)
+            nn.init.zeros_(l.bias)
+        self.network = nn.Sequential(*self.layers)
 
     def save_checkpoint(self, epoch, optimizer, loss, save_dir, check_name=''):
         checkpoint = {
@@ -69,8 +73,6 @@ class ThermalModel2D(Component):
     '''
     MLP Model for single 2D plate use
     '''
-    model_dir: Path = None
-    temp_scale: float = None
     plate: Medium = None
     grid: Grid = None
     grid_map: Tensor = None
@@ -79,7 +81,9 @@ class ThermalModel2D(Component):
     model: BasicMLP = None
     optimizer: optim.Optimizer = None
 
+    temp_scale: float = None
     core_only: bool = False    # if you want to train/eval core without BCs
+    model_dir: Path = None
 
     def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-4, wt_decay=1e-4, device='cuda'):
         device_str = device if torch.cuda.is_available() else "cpu"
@@ -87,8 +91,9 @@ class ThermalModel2D(Component):
         self.device = torch.device(device_str)
         self.grid_map = self._build_grid_map().to(self.device).requires_grad_(True)
 
-        # TODO: add testing of initialized weights?
         self.model = BasicMLP(num_in, num_out, num_blocks, num_hidden).to(self.device)
+        self.model.init_rand_wts() # TODO: add testing of initialized weights based on example?
+
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=wt_decay)
 
     def save_checkpoint(self, epoch, loss, name=''):
@@ -125,13 +130,7 @@ class ThermalModel2D(Component):
         return torch.Tensor()
 
     def _model(self, model_input:Tensor=None) -> torch.Tensor:
-        if self.scaler_enabled:
-            with (amp.autocast(self.device.type)):  # allows use of scaler
-                predictions = self.model(model_input) * self.temp_scale
-        else:
-            predictions = self.model(model_input) * self.temp_scale
-
-        return predictions
+        return self.model(model_input) * self.temp_scale
 
     def _apply_loss(self, total_loss: Tensor):
         total_loss.backward(retain_graph=True)

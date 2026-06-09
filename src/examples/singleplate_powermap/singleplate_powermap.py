@@ -39,7 +39,7 @@ util_data.clear_dir(train_dir)
 fixed_spread, fixed_power = 1.0, 1.8
 fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
 power_sources = [
-    Gaussian(x=20, y=20, spread=fixed_spread, amplitude=fixed_amp),
+    Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
 ]
 util_example.train_example(
     model, power_sources,
