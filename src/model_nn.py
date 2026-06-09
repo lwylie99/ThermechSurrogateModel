@@ -37,7 +37,7 @@ class BasicMLP(nn.Module):
             layers += [
                 nn.Linear(l_in, l_out),
                 nn.Tanh(),
-                # nn.Dropout(dropout)
+                nn.Dropout(dropout)
             ]
             nn.init.xavier_uniform_(layers[-1].weight)
             l_in = l_out
