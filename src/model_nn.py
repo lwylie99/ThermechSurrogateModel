@@ -86,10 +86,10 @@ class ThermalModel2D(Component):
         torch.cuda.empty_cache()
         self.device = torch.device(device_str)
         self.scaler = amp.GradScaler(device_str)
-        self.grid_map = self._build_grid_map().reshape(-1, 2).to(self.device).requires_grad_(True)
+        self.grid_map = self._build_grid_map().to(self.device).requires_grad_(True)
 
         self.model = BasicMLP(num_in, num_out, num_blocks, num_hidden).to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(),lr=1e-4, weight_decay=1e-4)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=wt_decay)
 
     def save_checkpoint(self, epoch, loss, name=''):
         self.model.save_checkpoint(epoch, self.optimizer, loss, self.model_dir, check_name=f'_epoch{epoch}_{name}')
@@ -97,23 +97,29 @@ class ThermalModel2D(Component):
     def load_checkpoint(self, epoch, name=''):
         self.optimizer = self.model.load_checkpoint(self.optimizer, self.model_dir, check_name=f'_epoch{epoch}_{name}')
 
-    def _build_grid_map(self) -> Tensor:
-        ''' MAPS PLATE TO GRID coords[i,j] = [x_cm, y_cm] '''
-        xs = torch.linspace(0, self.plate.width, self.grid.width)
-        ys = torch.linspace(0, self.plate.length, self.grid.length)
-        yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (rows, cols) each
-        return torch.stack([xx, yy], dim=-1)  # (rows, cols, 2)
+    def _build_grid_map(self, plot=False):
+        ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
+        xs = torch.linspace(0, self.plate.length, self.grid.length)  # (20,)
+        ys = torch.linspace(0, self.plate.width, self.grid.width)  # (10,)
+        yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (10, 20) — dim0=y ✓
+        if plot:
+            return xs, ys
+        return torch.stack([xx, yy], dim=-1).reshape(-1, 2)  # (200, 2)
 
-    def _mask(self, part) -> Tensor:
+    def _grid_mask(self, part) -> Tensor:
         ''' a flat boolean mask for use on flattened (N, 2) coord tensor '''
         mask = torch.zeros(self.grid.shape(), dtype=torch.bool)
         mask[self.grid.masks[part]] = True
         mask = mask.reshape(-1)
         return mask
 
-    def _coords(self, part) -> Tensor:
-        mask = self._mask(part)
-        return self.grid_map[mask]
+    def _coords(self, part=None) -> Tensor:
+        if part is None:
+            return self.grid_map.clone().detach().requires_grad_(True)
+
+        mask = self._grid_mask(part)
+        coords = self.grid_map.clone().detach().requires_grad_(True)
+        return coords[mask]
 
     def _model_parts(self, model_input: Tensor) -> torch.Tensor:
         return torch.Tensor()
@@ -255,6 +261,7 @@ class SingleGaussPlateModel(ThermalModel2D):
                 # print(f'part:{part}, CUR LOSS: {cur_loss.item()} and MULT: {coords.shape[0]}')
                 cur_loss = cur_loss * coords.shape[0]
                 total_loss = total_loss + cur_loss
+                total_loss = total_loss * 100.0
                 loss_parts[part] = cur_loss.item()
 
             self._apply_loss(total_loss)

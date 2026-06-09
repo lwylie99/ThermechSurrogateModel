@@ -4,7 +4,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import torch
+from torch import Tensor
 
+from components_thermal import GaussianPde
 from util_data import DataPair, PMPair
 from loss import paired_loss
 from model_nn import ThermalModel2D
@@ -26,59 +28,54 @@ class PowerMapPlateModel(ThermalModel2D):
     def default_model(self, num_blocks=6, num_hidden=512, lr=1e-4, wt_decay=1e-4, device='cuda:0'):
         self.build_model(3, 1, num_blocks, num_hidden, lr, wt_decay, device)
 
-    def eval_pair(self, pair: DataPair[np.ndarray], plot=False):
-        if self.model is None:
-            self.default_model()
-        self.model.eval()
-
-        with torch.no_grad():
-            mod_in = self._build_input(power_map=pair.input)
-            pred_temps = self._model(mod_in)
-            act_temps = pair.solution
-            cur_loss = paired_loss(pred_temps, act_temps)
-            preds_np = pred_temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
-
-        xs = torch.linspace(0, self.plate.length, self.grid.length)
-        ys = torch.linspace(0, self.plate.width, self.grid.width)
-
-        if plot:
-            return cur_loss, preds_np, xs, ys
-
-        return cur_loss
+    # def eval_pair(self, pair: DataPair[np.ndarray], plot=False):
+    #     if self.model is None:
+    #         self.default_model()
+    #     self.model.eval()
+    #
+    #     with torch.no_grad():
+    #         mod_in = self._build_input(power_map=pair.input)
+    #         pred_temps = self._model(mod_in)
+    #         act_temps = pair.solution
+    #         cur_loss = paired_loss(pred_temps, act_temps)
+    #         preds_np = pred_temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
+    #
+    #     xs = torch.linspace(0, self.plate.length, self.grid.length)
+    #     ys = torch.linspace(0, self.plate.width, self.grid.width)
+    #
+    #     if plot:
+    #         return cur_loss, preds_np, xs, ys
+    #
+    #     return cur_loss
 
     def eval_plate(self, power: Gaussian, plot=False):
-        if self.model is None:
-            self.default_model()
-        self.model.eval()
+        ...
+        with torch.enable_grad():
+            bc = self.plate.boundaries['core']
+            coords = self._coords('core')  # ← core only, (144, 2)
+            mod_in = self._build_input([power], 'core', bc, coords=coords)
+            temps = self._model(mod_in)
+            total_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
 
-        # with torch.no_grad():
-        # eval plate is always core only
-        bc = self.plate.boundaries['core']
-        coords = self.grid_map.clone().detach().requires_grad_(True) # enables tracking for pointwise loss
-        power_map = bc.build_power_map(coords, [power], self.device)
-        mod_in = self._build_input(power_map)
-        temps = self._model(mod_in)
-        total_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
-
-        if plot:
-            raw_residuals = bc.pointwise_loss(u=temps, coords=coords, k=self.plate.conduction)
-            xs = np.linspace(0, self.plate.length, self.grid.length)
-            ys = np.linspace(0, self.plate.width, self.grid.width)
-            power_np = power_map.cpu().detach().numpy().reshape(self.grid.length, self.grid.width)
-            temps_np = temps.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
-            residuals_np = raw_residuals.detach().cpu().numpy().reshape(self.grid.length, self.grid.width)
-            print(f"plot shapes --> power: {power_np.shape}, temps: {temps_np.shape}, residuals: {residuals_np.shape} ")
-            return total_loss, temps_np, power_np, residuals_np, xs, ys
+            if plot:
+                # rebuild on full grid for plotting
+                full_coords = self._coords()
+                bc.build_power_map(full_coords, [power], self.device)
+                power_map = bc.power_map
+                full_mod_in = self._build_input([power], 'core', bc, coords=full_coords)
+                full_temps = self._model(full_mod_in)
+                residuals = bc.residual(u=full_temps, coords=full_coords, k=self.plate.conduction)
+                return total_loss, full_temps, power_map, residuals
 
         return total_loss
 
 
     def train_model(self, power_data: list[Gaussian], paired_data: list[PMPair]=[], epochs=24) -> pd.DataFrame:
-        pair_loss_hist = []
+        # pair_loss_hist = []
         last_loss, loss_hist = float('inf'), []
         best_loss = last_loss
         power_shuffle = power_data.copy()
-        paired_shuffle = paired_data.copy()
+        # paired_shuffle = paired_data.copy()
 
         e, sub_scale, sub_e = 0, 1, 1
         while e < epochs:
@@ -90,13 +87,13 @@ class PowerMapPlateModel(ThermalModel2D):
                 loss_hist = loss_hist + p_losses
                 e += sub_e
 
-            random.shuffle(paired_shuffle)
-            for p in paired_shuffle:
-                print(f'EPOCH: {e}, pair: ', p.name)
-                last_loss, p_losses = self._train_pair(p, sub_e)
-                best_loss = min(best_loss, last_loss)
-                pair_loss_hist = pair_loss_hist + p_losses
-                e += sub_e
+            # random.shuffle(paired_shuffle)
+            # for p in paired_shuffle:
+            #     print(f'EPOCH: {e}, pair: ', p.name)
+            #     last_loss, p_losses = self._train_pair(p, sub_e)
+            #     best_loss = min(best_loss, last_loss)
+            #     pair_loss_hist = pair_loss_hist + p_losses
+            #     e += sub_e
 
             print(f'BEST_LOSS: {best_loss}')
 
@@ -109,35 +106,35 @@ class PowerMapPlateModel(ThermalModel2D):
                 # self.save_checkpoint(e, last_loss)
                 break
 
-            sub_scale = min(20, sub_scale * 1.5)
-            sub_e = round(sub_scale)
-
-            if best_loss < 10:
-                self.scaler_enabled = False
+            # sub_scale = min(10, sub_scale * 1.5)
+            # sub_e = round(sub_scale)
+            #
+            # if best_loss < 10:
+            #     self.scaler_enabled = False
 
         return pd.DataFrame(loss_hist)
 
-    def _train_pair(self, pair: PMPair, epochs=10):
-        ''' train across all points on plate '''
-        if self.model is None:
-            self.default_model()
-        self.model.train()
-
-        loss_parts = dict()
-        loss_list = []
-        total_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-        for e in range(epochs):
-            self.optimizer.zero_grad()
-            power, act_temps = pair.get_tensors(self.device)
-            mod_in = self._build_input(power_map=power)
-            pred_temps = self._model(mod_in)
-            cur_loss = paired_loss(pred_temps, act_temps)
-
-            self._apply_loss(cur_loss)
-            loss_parts['total'] = cur_loss.item()
-            loss_list.append(loss_parts)
-
-        return total_loss.item(), loss_list
+    # def _train_pair(self, pair: PMPair, epochs=10):
+    #     ''' train across all points on plate '''
+    #     if self.model is None:
+    #         self.default_model()
+    #     self.model.train()
+    #
+    #     loss_parts = dict()
+    #     loss_list = []
+    #     total_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+    #     for e in range(epochs):
+    #         self.optimizer.zero_grad()
+    #         power, act_temps = pair.get_tensors(self.device)
+    #         mod_in = self._build_input(power_map=power)
+    #         pred_temps = self._model(mod_in)
+    #         cur_loss = paired_loss(pred_temps, act_temps)
+    #
+    #         self._apply_loss(cur_loss)
+    #         loss_parts['total'] = cur_loss.item()
+    #         loss_list.append(loss_parts)
+    #
+    #     return total_loss.item(), loss_list
 
     def _train_plate(self, power, epochs=10):
         ''' train across all points on plate '''
@@ -148,10 +145,6 @@ class PowerMapPlateModel(ThermalModel2D):
         parts = PartSet().keys(clean=False)
         if self.core_only:
             parts = ['core']
-
-        # coords = self._coords('core').requires_grad_(True)
-        self.plate.boundaries['core'].build_power_map(self.grid_map, [power], self.device)
-        power_map = self.plate.boundaries['core'].power_map
 
         loss_list = []
         total_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
@@ -166,8 +159,8 @@ class PowerMapPlateModel(ThermalModel2D):
                     continue
 
                 # detach from back propagation bc its not fed into model
-                coords = self._coords(part).requires_grad_(True)
-                mod_in = self._build_input(power_map, part, coords=coords)
+                coords = self._coords(part)
+                mod_in = self._build_input([power], part, bc, coords=coords)
                 temps = self._model(mod_in)
 
                 cur_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
@@ -185,14 +178,17 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return total_loss.item(), loss_list
 
-    def _build_input(self, power_map, part=None, coords=None) -> torch.Tensor:
-        if part is None and coords is None:
-            coords = self.grid_map
+    def _build_input(self, power: list[Gaussian], part, bc, coords) -> torch.Tensor:
+        if part == 'core':
+            bc.build_power_map(coords, power, self.device)
+            power_map = bc.power_map
         else:
-            power_mask = self._mask(part)
-            power_map = power_map[power_mask]
+            # build directly on part coords, no masking needed
+            temp_bc = GaussianPde()
+            temp_bc.build_power_map(coords, power, self.device)
+            power_map = temp_bc.power_map
 
-        if not coords.shape[0] == power_map.shape[0]:
+        if coords.shape[0] != power_map.shape[0]:
             print(f"WARNING: coords ({coords.shape}) and power_map ({power_map.shape}) should be same length")
 
         return torch.cat([coords, power_map], dim=-1)

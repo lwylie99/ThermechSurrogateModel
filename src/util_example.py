@@ -5,32 +5,42 @@ import torch
 
 from components import Component
 from components_thermal import GaussianPde
-from util_data import DataPair
+from util_data import DataPair, PMPair
 
 
-def eval_paired_example(model, power_data: list[DataPair], save_dir=None):
+def eval_paired_example(model, power_data: list[PMPair], save_dir=None):
     for i in range(len(power_data)):
         p = power_data[i]
         title = p.name
-        cur_loss, preds_np, xs, ys = model.eval_pair(p, plot=True)
-
-        # TODO: MAGGIE - see funct def for more detail
+        total_loss, temps, power_map, residuals = model.eval_plate(p, plot=True)
+        truth_np = p.solution.reshape(model.grid.shape())
+        xs, ys = model._build_grid_map(plot=True)
         plot_paired_predictions(
-            cur_loss, preds_np, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+            temps, truth_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
         )
 
 
 def eval_plate_example(model, power_data: list, save_dir=None):
     for i in range(len(power_data)):
-        title = ''
+        title = 'Gauss Power'
         p = power_data[i]
-        if isinstance(p, Component):
-            title = p.title()
+        # if isinstance(p, Component):
+        #     title = p.title()
 
-        total_loss, temps, power_np, residuals_np, xs, ys = model.eval_plate(p, plot=True)
+        total_loss, temps, power_map, residuals = model.eval_plate(p, plot=True)
+
+        power_map = power_map.cpu().detach().numpy().reshape(model.grid.shape())
+        temps = temps.detach().cpu().numpy().reshape(model.grid.shape())
+        residuals = residuals.detach().cpu().numpy().reshape(model.grid.shape())
+        xs, ys = model._build_grid_map(plot=True)
+        print(f"grid  --> len: {model.grid.length}, width: {model.grid.width}")
+        print(f"plate --> len: {model.plate.length}, width: {model.plate.width}")
+        print(f"shapes --> grid: {model.grid.shape()}, plate: {model.plate.shape()}")
+        print(f"       --> power: {power_map.shape}, temps: {temps.shape}")
+        print(f"       --> xs: {xs.shape}, ys: {ys.shape}")
         plot_power_map_predictions(
-            total_loss, temps, power_np, xs, ys,
+            temps, power_map, xs, ys,
             title=title, save_dir=save_dir, save_suffix=f'_p{i}'
         )
 
@@ -42,8 +52,7 @@ def eval_plate_example(model, power_data: list, save_dir=None):
             )
 
         plot_pde_residuals(
-            residuals_np, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_res_{i}'
+            residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_res_{i}'
         )
 
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
@@ -157,7 +166,7 @@ def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None,
 # TODO: MAGGIE CONTEXT -->  - below are plot methods mostly for trouble shooting
 #  welcome to change em up, but no work needed here right now as far as I know
 
-def plot_predicted_temperature(loss, temps, power_np, xs, ys, title='', save_dir=None, save_suffix=''):
+def plot_predicted_temperature(temps, xs, ys, title='', save_dir=None, save_suffix=''):
     """
     Plots predicted temperature field from the PINN model.
     """
@@ -180,7 +189,7 @@ def plot_predicted_temperature(loss, temps, power_np, xs, ys, title='', save_dir
     plt.show()
 
 
-def plot_power_map_predictions(loss, temps, power_np, xs, ys, title, save_dir=None, save_suffix=''):
+def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, save_suffix=''):
     """
     Plots predicted vs analytical temperature fields side by side.
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
@@ -222,11 +231,10 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
 
     bc = GaussianPde()
     bc.build_power_map(grid_map, [power_source], model.device)
-    power_np = bc.power_map.cpu().detach().numpy().reshape(grid.length, grid.width)
-    with torch.no_grad():
-        mod_in = model._build_input(bc.power_map)
-        preds = model._model(mod_in)
-        preds_np = preds.detach().cpu().numpy().reshape(grid.length, grid.width)
+    power_np = bc.power_map.cpu().detach().numpy().reshape(model.grid.shape())
+    mod_in = model._build_input(bc.power_map)
+    preds = model._model(mod_in)
+    preds_np = preds.detach().cpu().numpy().reshape(model.grid.shape())
 
     xs = np.linspace(0, plate.length, grid.length)
     ys = np.linspace(0, plate.width, grid.width)

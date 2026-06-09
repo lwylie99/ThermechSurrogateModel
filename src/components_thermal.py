@@ -63,28 +63,25 @@ class GaussianPde(PdeCore):
         location = torch.tensor([[g.x, g.y] for g in power], dtype=torch.float32).to(device)
 
         x, y = coords[:, 0:1], coords[:, 1:2]  # (N, 1)
-        x0, y0 = location[..., 0:1], location[..., 1:2]  # (M, 1) or (1,)
+        x0, y0 = location[:, 0], location[:, 1]  # (M, 1) or (1,)
         r2 = (x - x0) ** 2 + (y - y0) ** 2  # (N, M) or (N, 1)
         # amplitude
         Q = amplitude * torch.exp(-r2 / (2 * spread**2))
 
-        self.power_map = Q.sum(dim=-1, keepdim=True).requires_grad_(True)  # (N, 1) — sum over all sources
+        self.power_map = Q.sum(dim=-1, keepdim=True).detach() # (N, 1) — sum over all sources
         return self.power_map
+
+    def residual(self, u, coords, k) -> Tensor:
+        ''' Enforces: k * ∇²u + Q(x,y) = 0
+        Returns the raw, un-reduced residual vector for plotting/troubleshooting.
+        '''
+        jac, u_laplace = laplacian_jacobian(u, coords, k)
+        residual = u_laplace + self.power_map.squeeze(-1)
+        return residual
 
     def loss(self, u, coords, k) -> Tensor:
         ''' Enforces: k * ∇²u + Q(x,y) = 0 -> residual: k * ∇²u + Q = 0 '''
-        jac, u_laplace = laplacian_jacobian(u, coords, k)
-        residual = (u_laplace + self.power_map).squeeze()
-        return residual_mse(residual)
-
-    def pointwise_loss(self, u, coords, k) -> Tensor:
-        """
-        Enforces: k * ∇²u + Q(x,y) = 0
-        Returns the raw, un-reduced residual vector for plotting/troubleshooting.
-        """
-        jac, u_laplace = laplacian_jacobian(u, coords, k)
-        residual = (u_laplace + self.power_map).squeeze()
-        return residual
+        return residual_mse(self.residual(u, coords, k))
 
 @dataclass
 class Edge(BoundaryCondition):
@@ -110,7 +107,7 @@ class Neumann(Edge):
         Enforces: ∂u/∂n = flux
         '''
         u_jac = jacobian(u, coords)
-        residual = (u_jac[..., self.axis] - self.flux).squeeze()
+        residual = (u_jac[..., self.axis] - self.flux).squeeze(-1)
         return residual_mse(residual)
 
 

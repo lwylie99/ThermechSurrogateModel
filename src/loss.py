@@ -25,17 +25,6 @@ def laplacian_jacobian(u, coords, conductivity=1):
 
     return jac, uxx + uyy
 
-def laplacian_jacobian_old(u, coords, conductivity=1):
-    jac = jacobian(u, coords)  # (N, 2)
-
-    u_xx = gradients(jac[..., 0:1], coords)[0][..., 0]
-    u_yy = gradients(jac[..., 1:2], coords)[0][..., 1]
-
-    lap = (u_xx + u_yy) * conductivity
-
-    return jac, lap
-
-
 def residual_mse(residual) -> Tensor:
     return torch.nn.functional.mse_loss(residual, torch.zeros_like(residual))
 
