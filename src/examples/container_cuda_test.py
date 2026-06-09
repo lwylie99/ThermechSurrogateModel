@@ -26,7 +26,7 @@ class TestMLP(nn.Module):
         return self.network(x)
 
 
-device_str = 'cuda:0' if torch.cuda.is_available() else "cpu"
+device_str = 'cuda' if torch.cuda.is_available() else "cpu"
 device = torch.device(device_str)
 
 print(f'is cuda available: {torch.cuda.is_available()}')
