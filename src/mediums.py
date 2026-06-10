@@ -8,7 +8,6 @@ from torch import Tensor
 from components_thermal import PdeCore
 from src.components import NDComponent, PartSet, EdgeSet
 
-
 @dataclass
 class Medium(NDComponent):
     ''' data for a thermal medium '''

@@ -61,18 +61,18 @@ class NDComponent(ModularComponent):
     length: float | int = None
     width: float | int = None
     masks = PartSet(
-        top=(0, slice(None)),
-        bottom=(-1, slice(None)),
-        left=(slice(None), 0),
-        right=(slice(None), -1),
-        core=(slice(1, -1), slice(1, -1))
+        top=(0, slice(None)),  # y=0, all x   → (1, 20) = 20 pts
+        bottom=(-1, slice(None)),  # y=max, all x → 20 pts
+        left=(slice(None), 0),  # all y, x=0   → 10 pts
+        right=(slice(None), -1),  # all y, x=max → 10 pts
+        core=(slice(1, -1), slice(1, -1))  # (8, 18) = 144 pts
     )
     # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
-    axis = EdgeSet(top=0, bottom=0, left=1, right=1)
+    axis = EdgeSet(top=1, bottom=1, left=0, right=0)
     # direction of normal vector pointing outward
     out = EdgeSet(top=1, bottom=-1, left=-1, right=1)
 
     # def __post_init__(self):
 
     def shape(self) -> tuple:
-        return self.length, self.width
+        return self.width, self.length  # (ny, nx) = (rows, cols) — numpy convention

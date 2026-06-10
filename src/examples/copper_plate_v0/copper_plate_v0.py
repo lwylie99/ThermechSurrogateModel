@@ -26,7 +26,7 @@ train_dir = Path(r'train_results').resolve()
 data_util.clear_dir(train_dir)
 
 model = SingleGaussPlateModel(plate=plate, grid=grid, temp_scale=100, model_dir=model_dir)
-model.default_model(device='cuda:0')
+model.default_model(device='cuda')
 fixed_spread, fixed_amp = plate.length/4, 1.0
 power_sources = [
     Gaussian(x=plate.length*0.15, y=plate.length*0.15, spread=fixed_spread, amplitude=fixed_amp),
