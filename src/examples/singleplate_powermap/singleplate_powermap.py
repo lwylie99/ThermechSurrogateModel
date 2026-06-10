@@ -11,7 +11,7 @@ from src.mediums import Medium, Grid
 
 ''' DEFINE PLATE '''
 # define FR4 plate
-plate = Medium(conduction=0.3, length=40.0, width=40.0)
+plate = Medium(conduction=0.3*1e-3, length=40.0, width=40.0) # Update conduction to W/(mm K)
 plate.setConditions(PartSet(
     top=Insulated(),
     bottom=Insulated(),
@@ -43,7 +43,7 @@ power_sources = [
 ]
 util_example.train_example(
     model, power_sources,
-    epochs=1000, save_dir=train_dir
+    epochs=100, save_dir=train_dir
 )
 util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 
