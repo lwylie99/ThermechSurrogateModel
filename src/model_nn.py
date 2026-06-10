@@ -67,6 +67,11 @@ class BasicMLP(nn.Module):
         self.load_state_dict(checkpoint['model_state_dict'])
         return optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
+    def load_model(self, optimizer, path=''):
+        checkpoint = torch.load(path)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        return optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
 
 @dataclass
 class ThermalModel2D(Component):
@@ -98,6 +103,9 @@ class ThermalModel2D(Component):
 
     def save_checkpoint(self, epoch, loss, name=''):
         self.model.save_checkpoint(epoch, self.optimizer, loss, self.model_dir, check_name=f'_epoch{epoch}_{name}')
+
+    def load_model(self, path=''):
+        self.model.load_model(self.optimizer, path=path) #self.optimizer =
 
     def load_checkpoint(self, epoch, name=''):
         self.optimizer = self.model.load_checkpoint(self.optimizer, self.model_dir, check_name=f'_epoch{epoch}_{name}')
@@ -199,7 +207,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return pd.DataFrame(loss_hist)
 
-    def _train_plate(self, power, epochs=1):
+    def _train_plate(self, power, epochs=1, log_epochs=False):
         ''' train across all points on plate '''
         if self.model is None:
             self.default_model()
@@ -236,7 +244,7 @@ class PowerMapPlateModel(ThermalModel2D):
             loss_parts['total'] = total_loss.item()
             loss_list.append(loss_parts)
 
-            if e == epochs - 1 or e % (epochs // 2) == 0:
+            if log_epochs and (e == epochs - 1 or e % (epochs // 2) == 0):
                 print(f'\tPWR_EPOCH: {e}, total_loss: ', total_loss)
 
         return total_loss, loss_list

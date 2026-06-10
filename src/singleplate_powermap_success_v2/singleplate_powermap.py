@@ -33,9 +33,6 @@ model = PowerMapPlateModel(
 ) # train on just core to troubleshoot
 model.default_model(num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda')
 
-model_path = Path(r'../../singleplate_powermap_successful/checkpoints/checkpoint_epoch1000_.pth').resolve()
-model.load_model(path=model_path)
-
 ''' TRAIN MODEL '''
 train_dir = Path(r'results').resolve()
 util_data.clear_dir(train_dir)
@@ -46,7 +43,7 @@ power_sources = [
 ]
 util_example.train_example(
     model, power_sources,
-    epochs=1, save_dir=train_dir
+    epochs=100, save_dir=train_dir
 )
 util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 
