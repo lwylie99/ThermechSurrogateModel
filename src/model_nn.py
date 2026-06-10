@@ -46,7 +46,8 @@ class BasicMLP(nn.Module):
         # DO NOT INITIALIZE random wts for last layer
         self.layers += [
             nn.Linear(l_in, num_out),
-            nn.Softplus()
+            nn.Tanh(),
+            # nn.Softplus()
         ] # TODO: new activation function
         self.network = nn.Sequential(*self.layers)
 
@@ -63,7 +64,12 @@ class BasicMLP(nn.Module):
         torch.save(checkpoint, save_dir/f'checkpoint{check_name}.pth')
 
     def load_checkpoint(self, optimizer, save_dir, check_name=''):
-        checkpoint = torch.load(save_dir/f'checkpoint{check_name}.pth')
+        checkpoint = torch.load(save_dir/f'checkpoint{check_name}.pth', weights_only=False)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        return optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    def load_model(self, optimizer, path=''):
+        checkpoint = torch.load(path, weights_only=False)
         self.load_state_dict(checkpoint['model_state_dict'])
         return optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -78,12 +84,13 @@ class ThermalModel2D(Component):
     grid_map: Tensor = None
 
     device = None
-    model: BasicMLP = None
     optimizer: optim.Optimizer = None
+    model: BasicMLP = None
+    model_dir: Path = None
 
     temp_scale: float = None
     core_only: bool = False    # if you want to train/eval core without BCs
-    model_dir: Path = None
+    epochs: int = 0 # number of epochs model has been trained for
 
     def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-3, wt_decay=1e-4, device='cuda'):
         device_str = device if torch.cuda.is_available() else "cpu"
@@ -99,8 +106,11 @@ class ThermalModel2D(Component):
     def save_checkpoint(self, epoch, loss, name=''):
         self.model.save_checkpoint(epoch, self.optimizer, loss, self.model_dir, check_name=f'_epoch{epoch}_{name}')
 
+    def load_model(self, path=''):
+        self.model.load_model(self.optimizer, path=path)
+
     def load_checkpoint(self, epoch, name=''):
-        self.optimizer = self.model.load_checkpoint(self.optimizer, self.model_dir, check_name=f'_epoch{epoch}_{name}')
+        self.model.load_checkpoint(self.optimizer, self.model_dir, check_name=f'_epoch{epoch}_{name}')
 
     def _build_grid_map(self, plot=False):
         ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
@@ -188,6 +198,10 @@ class PowerMapPlateModel(ThermalModel2D):
 
             print(f'BEST_LOSS: {best_loss}')
 
+            if last_loss.item() <= 1.0:
+                cur_lr = self.optimizer.param_groups[0]['lr']
+                self.optimizer.param_groups[0]['lr'] = min(1e-4, cur_lr)
+
             if e % max(1, (epochs // 10)) == 0:
                 print('saving model checkpoint...')
                 self.save_checkpoint(e, last_loss)
@@ -199,7 +213,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return pd.DataFrame(loss_hist)
 
-    def _train_plate(self, power, epochs=1):
+    def _train_plate(self, power, epochs=1, log_epochs=False):
         ''' train across all points on plate '''
         if self.model is None:
             self.default_model()
@@ -236,7 +250,7 @@ class PowerMapPlateModel(ThermalModel2D):
             loss_parts['total'] = total_loss.item()
             loss_list.append(loss_parts)
 
-            if e == epochs - 1 or e % (epochs // 2) == 0:
+            if log_epochs and (e == epochs - 1 or e % (epochs // 2) == 0):
                 print(f'\tPWR_EPOCH: {e}, total_loss: ', total_loss)
 
         return total_loss, loss_list

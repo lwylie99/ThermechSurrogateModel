@@ -69,7 +69,7 @@ class GaussianPde(PdeCore):
         Q = amplitude * torch.exp(-r2 / (2 * spread**2))
 
         # Powermap check (should be ~ =)
-        print("Peak Q =", torch.max(Q), " Amplitude =", amplitude)
+        # print("Peak Q =", torch.max(Q), " Amplitude =", amplitude)
 
         self.power_map = Q.sum(dim=-1, keepdim=True).detach() # (N, 1) — sum over all sources
         return self.power_map

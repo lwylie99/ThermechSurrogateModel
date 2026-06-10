@@ -43,7 +43,7 @@ power_sources = [
 ]
 util_example.train_example(
     model, power_sources,
-    epochs=1000, save_dir=train_dir
+    epochs=100, save_dir=train_dir
 )
 util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 
