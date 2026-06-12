@@ -58,7 +58,8 @@ def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
 def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None, save_suffix=''):
     # place holder --> could replace w something like
     # ground_truth_class.maggie_plot_function(loss, preds_np, xs, ys)
-
+    # Should actually reference self.scale_factor and self.ambient_temp
+    preds_np= preds_np / 200 + 25
     # Calculate absolute error
     error_np = np.abs(preds_np - truth_np)
 
@@ -107,6 +108,7 @@ def plot_predicted_temperature(temps, xs, ys, title='', save_dir=None, save_suff
     """
     Plots predicted temperature field from the PINN model.
     """
+    temps = temps / 200 + 25
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.contourf(xs, ys, temps, levels=50, cmap='hot')
     # ax.scatter(power_source.x, power_source.y, c='cyan', marker='x', s=100, label='Heat source')
@@ -131,6 +133,7 @@ def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, sa
     Plots predicted vs analytical temperature fields side by side.
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
+    temps = temps / 200 + 25
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     im0 = axes[0].contourf(xs, ys, temps, levels=50, cmap='hot')

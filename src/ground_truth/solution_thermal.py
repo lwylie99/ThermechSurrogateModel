@@ -436,7 +436,7 @@ np.save("temperature.npy",
         all_T
         )
 
-all_P = np.array([item["P"] for item in results_full])
+all_P = np.array([item["P"] for item in results_full]) * 1e-6
 print(all_P.shape)
 np.save("powermaps.npy",
         all_P

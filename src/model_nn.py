@@ -15,7 +15,7 @@ from src.components_thermal import Gaussian, GaussianPde
 
 
 class FourierFeatures(nn.Module):
-    def __init__(self, num_in, num_features, scale=10.0):
+    def __init__(self, num_in, num_features, scale=5.0):
         super().__init__()
         B = torch.randn(num_in, num_features // 2) * scale
         self.register_buffer('B', B)
@@ -81,7 +81,8 @@ class ThermalModel2D(Component):
     model: BasicMLP = None
     optimizer: optim.Optimizer = None
 
-    temp_scale: float = None
+    ambient_temp: float = None
+    scale_factor: float = None
     core_only: bool = False    # if you want to train/eval core without BCs
     model_dir: Path = None
 
@@ -129,8 +130,8 @@ class ThermalModel2D(Component):
         return torch.Tensor()
 
     def _model(self, model_input:Tensor=None) -> torch.Tensor:
-        # print(self.model(model_input))
-        return self.model(model_input) * self.temp_scale
+        raw_out = self.model(model_input)
+        return raw_out * self.scale_factor
 
     def _apply_loss(self, total_loss: Tensor):
         total_loss.backward(retain_graph=True)
@@ -179,7 +180,8 @@ class PowerMapPlateModel(ThermalModel2D):
             mod_in = torch.cat([coords, power_core], dim=-1)
             temps = self._model(mod_in)
             total_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
-
+            print(power_core.min())
+            print(power_core.max())
             if plot:
                 # rebuild on full grid for plotting
                 full_coords = self._coords()
@@ -189,7 +191,6 @@ class PowerMapPlateModel(ThermalModel2D):
                 full_temps = self._model(full_mod_in)
                 residuals = bc.residual(u=full_temps, coords=full_coords, k=self.plate.conduction)
                 return total_loss, full_temps, residuals
-
         return total_loss
 
     def train_model(self, power_data: list, epochs=24) -> pd.DataFrame:

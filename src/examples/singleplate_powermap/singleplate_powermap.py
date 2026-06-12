@@ -15,8 +15,8 @@ plate = Medium(conduction=0.3*1e-3, length=40.0, width=40.0) # Update conduction
 plate.setConditions(PartSet(
     top=Insulated(),
     bottom=Insulated(),
-    left=Robin(h=10.0, ambient=25.0),
-    right=Robin(h=10.0, ambient=25.0),
+    left=Robin(h=10.0*1e-6, ambient=25.0),
+    right=Robin(h=10.0*1e-6, ambient=25.0),
     core=GaussianPde()
 ))
 grid = Grid()
@@ -28,7 +28,8 @@ grid.width=48
 model_dir = Path(r'checkpoints').resolve()
 util_data.clear_dir(model_dir)
 model = PowerMapPlateModel(
-    plate=plate, grid=grid, temp_scale=100,
+    plate=plate, grid=grid,
+    ambient_temp=25, scale_factor=100,
     model_dir=model_dir, core_only=True
 ) # train on just core to troubleshoot
 model.default_model(num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda')
@@ -51,5 +52,6 @@ util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 # TODO: mag pls help
 analytical_pairs = util_data.load_pwrmp_data(Path(r'../../ground_truth').resolve()) # returns none if empty dir
 powermap_data = analytical_pairs[0].input # should match wih generated power_sources for initial case
+print(powermap_data)
 temp_data = analytical_pairs[0].solution # should match shape of the temp prediction
 util_example.eval_paired_example(model, analytical_pairs, train_dir)
