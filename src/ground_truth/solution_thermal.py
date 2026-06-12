@@ -31,7 +31,7 @@ Ta = 25.0  # Ambient temperature [°C]
 # Resolution Control (Number of terms in Fourier expansion)
 N_max = 50  # x-direction terms
 M_max = 50  # y-direction terms
-Nx, Ny = 22, 22  # Mesh grid resolution for input-output pairs
+Nx, Ny = 48, 48  # Mesh grid resolution for input-output pairs
 Nx_plot, Ny_plot = 200, 200
 
 # Setup spatial grid matrices
@@ -55,7 +55,7 @@ BC_TOP = {"type": "Robin",       "val": 10.0}
 
 # Sampling plan for heat sources
 sampling_plan = [
-    {"num": "01", "label": "Center – Low Power",    "power": 0.8, "x": 0.50, "y": 0.50, "sigma": 1.0},
+    {"num": "01", "label": "Applied Parameters",    "power": 0.8, "x": 0.50, "y": 0.50, "sigma": 3.0},
     {"num": "02", "label": "Center – Med Power",    "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 1.0},
     {"num": "03", "label": "Center – High Power",   "power": 1.2, "x": 0.50, "y": 0.50, "sigma": 1.0},
     {"num": "04", "label": "Center – Tight Spread", "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 0.5},
@@ -64,6 +64,8 @@ sampling_plan = [
     {"num": "07", "label": "Left Edge",             "power": 1.0, "x": 0.10, "y": 0.50, "sigma": 1.0},
     {"num": "08", "label": "Top-Left Corner",       "power": 1.0, "x": 0.10, "y": 0.90, "sigma": 1.0},
 ]
+
+sampling_plan = [sampling_plan[0]]
 
 def case_filename(case):
     safe_label = (case["label"]
@@ -196,7 +198,6 @@ def build_power_map(x, y, mus, sigmas, amplitudes, clip_threshold = 1e-4):
 # =============================================================================
 # 4. EXECUTE SAMPLE
 # =============================================================================
-
 
 # Gaussian Heat Sources
 for case in sampling_plan:
@@ -377,10 +378,10 @@ for case in sampling_plan:
     fontsize=11,
     fontweight="bold"
     )
-    
+
     ax2.set_xlabel("X [mm]", fontsize=11)
     ax2.set_ylabel("Y [mm]", fontsize=11)
-    
+
     # Overall Figure Details
     fig.suptitle(
     "FR-4 Substrate: 2D Thermal Problem\n"
@@ -412,7 +413,7 @@ for case in sampling_plan:
                   alpha=0.8)
     )
 
-    plt.tight_layout(rect=[0, 0.12, 1, 0.92])
+    plt.tight_layout(rect=[0.0, 0.15, 1.0, 0.95])
     plt.savefig(os.path.join(output_dir, f"{fname}.png"), dpi=300, bbox_inches="tight")
 
     plt.close()

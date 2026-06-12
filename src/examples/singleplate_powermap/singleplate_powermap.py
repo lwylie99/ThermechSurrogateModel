@@ -43,12 +43,13 @@ power_sources = [
 ]
 util_example.train_example(
     model, power_sources,
-    epochs=100, save_dir=train_dir
+    epochs=10, save_dir=train_dir
 )
 util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 
 ''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
 # TODO: mag pls help
-# analytical_pairs = util_data.load_pwrmp_data(Path(r'../../ground_truth').resolve()) # returns none if empty dir
-# eval_data = [analytical_pairs[0]] # should match wih power_sources for initial case
-# util_example.eval_pair_example(model, eval_data, train_dir)
+analytical_pairs = util_data.load_pwrmp_data(Path(r'../../ground_truth').resolve()) # returns none if empty dir
+powermap_data = analytical_pairs[0].input # should match wih generated power_sources for initial case
+temp_data = analytical_pairs[0].solution # should match shape of the temp prediction
+util_example.eval_paired_example(model, analytical_pairs, train_dir)

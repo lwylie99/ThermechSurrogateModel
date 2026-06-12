@@ -3,15 +3,16 @@ from util_data import *
 from util_plots import *
 
 
-def eval_paired_example(model, power_data: list[PMPair], save_dir=None):
-    for i in range(len(power_data)):
-        p = power_data[i]
+def eval_paired_example(model, paired_data: list[PMPair], save_dir=None):
+    for i, p in enumerate(paired_data):
         title = p.name
-        total_loss, temps, power_map, residuals = model.eval_plate(p, plot=True)
-        truth_np = p.solution.reshape(model.grid.shape())
+        total_loss, temps, residuals = model.eval_paired_plate(p.input, plot=True)
+        grid_shape = model.grid.shape()
+        temps_np = temps.detach().cpu().numpy().reshape(grid_shape)
+        truth_np = p.solution.detach().cpu().numpy().reshape(grid_shape)
         xs, ys = model._build_grid_map(plot=True)
         plot_paired_predictions(
-            temps, truth_np, xs, ys,
+            temps_np, truth_np, xs, ys,
             title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
         )
 

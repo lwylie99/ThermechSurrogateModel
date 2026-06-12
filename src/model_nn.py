@@ -170,6 +170,27 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return total_loss
 
+    def eval_paired_plate(self, power_map, plot=False):
+        with torch.enable_grad():
+            bc = self.plate.boundaries['core']
+            coords = self._coords('core')  # (subset)
+            power_core = power_map[1:-1, 1:-1].reshape(-1,1)
+            bc.power_map = power_core
+            mod_in = torch.cat([coords, power_core], dim=-1)
+            temps = self._model(mod_in)
+            total_loss = bc.loss(u=temps, coords=coords, k=self.plate.conduction)
+
+            if plot:
+                # rebuild on full grid for plotting
+                full_coords = self._coords()
+                full_power = power_map.reshape(-1, 1)
+                bc.power_map = full_power
+                full_mod_in = torch.cat([full_coords, full_power], dim=-1)
+                full_temps = self._model(full_mod_in)
+                residuals = bc.residual(u=full_temps, coords=full_coords, k=self.plate.conduction)
+                return total_loss, full_temps, residuals
+
+        return total_loss
 
     def train_model(self, power_data: list, epochs=24) -> pd.DataFrame:
         last_loss, loss_hist = float('inf'), []
