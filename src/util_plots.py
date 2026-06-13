@@ -167,7 +167,7 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     model.model.eval()
 
     bc = GaussianPde()
-    bc.build_power_map(grid_map, [power_source], model.device)
+    bc.build_power_map(grid_map, [power_source], model._device)
     power_np = bc.power_map.cpu().detach().numpy().reshape(model.grid.shape())
     mod_in = model._build_input(bc.power_map)
     preds = model._model(mod_in)

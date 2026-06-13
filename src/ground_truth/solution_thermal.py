@@ -6,11 +6,12 @@ Created on Sat May 30 06:51:53 2026
 @author: maggiepoulsen
 """
 
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy.optimize import brentq
-import os
 
 # =============================================================================
 # 1. CONFIGURATION BLOCK (INPUT PARAMETERS)
@@ -25,13 +26,13 @@ L = L * 1e-3
 W = W * 1e-3
 
 # Material Properties & Ambient Conditions
-k = 0.3    # Thermal conductivity of FR-4 [W/(m·K)]
+k = 0.3  # Thermal conductivity of FR-4 [W/(m·K)]
 Ta = 25.0  # Ambient temperature [°C]
 
 # Resolution Control (Number of terms in Fourier expansion)
 N_max = 50  # x-direction terms
 M_max = 50  # y-direction terms
-Nx, Ny = 22, 22  # Mesh grid resolution for input-output pairs
+Nx, Ny = 48, 48  # Mesh grid resolution for input-output pairs
 Nx_plot, Ny_plot = 200, 200
 
 # Setup spatial grid matrices
@@ -48,22 +49,25 @@ X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 #       For Robin use val (convection coefficient) = desired value (h) [W/(m²·K)]
 
 
-BC_LEFT = {"type": "Neumann",   "val": 0.0}
-BC_RIGHT = {"type": "Neumann",   "val": 0.0}
-BC_BOTTOM = {"type": "Robin",       "val": 10.0}
-BC_TOP = {"type": "Robin",       "val": 10.0}
+BC_LEFT = {"type": "Neumann", "val": 0.0}
+BC_RIGHT = {"type": "Neumann", "val": 0.0}
+BC_BOTTOM = {"type": "Robin", "val": 10.0}
+BC_TOP = {"type": "Robin", "val": 10.0}
 
 # Sampling plan for heat sources
 sampling_plan = [
-    {"num": "01", "label": "Center – Low Power",    "power": 0.8, "x": 0.50, "y": 0.50, "sigma": 1.0},
-    {"num": "02", "label": "Center – Med Power",    "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 1.0},
-    {"num": "03", "label": "Center – High Power",   "power": 1.2, "x": 0.50, "y": 0.50, "sigma": 1.0},
+    {"num": "01", "label": "Applied Parameters", "power": 0.8, "x": 0.50, "y": 0.50, "sigma": 3.0},
+    {"num": "02", "label": "Center – Med Power", "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 1.0},
+    {"num": "03", "label": "Center – High Power", "power": 1.2, "x": 0.50, "y": 0.50, "sigma": 1.0},
     {"num": "04", "label": "Center – Tight Spread", "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 0.5},
     {"num": "05", "label": "Center – Broad Spread", "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 3.0},
-    {"num": "06", "label": "Bottom-Left Quarter",   "power": 1.0, "x": 0.25, "y": 0.25, "sigma": 1.0},
-    {"num": "07", "label": "Left Edge",             "power": 1.0, "x": 0.10, "y": 0.50, "sigma": 1.0},
-    {"num": "08", "label": "Top-Left Corner",       "power": 1.0, "x": 0.10, "y": 0.90, "sigma": 1.0},
+    {"num": "06", "label": "Bottom-Left Quarter", "power": 1.0, "x": 0.25, "y": 0.25, "sigma": 1.0},
+    {"num": "07", "label": "Left Edge", "power": 1.0, "x": 0.10, "y": 0.50, "sigma": 1.0},
+    {"num": "08", "label": "Top-Left Corner", "power": 1.0, "x": 0.10, "y": 0.90, "sigma": 1.0},
 ]
+
+sampling_plan = [sampling_plan[0]]
+
 
 def case_filename(case):
     safe_label = (case["label"]
@@ -71,6 +75,7 @@ def case_filename(case):
                   .replace("-", "")
                   .replace(" ", "_"))
     return f"Case{case['num']}_{safe_label}"
+
 
 results = []
 results_full = []
@@ -108,6 +113,7 @@ if h_L == 0.0 and h_R == 0.0 and h_B == 0.0 and h_T == 0.0:
 beta_L, beta_R = h_L / k, h_R / k
 beta_B, beta_T = h_B / k, h_T / k
 
+
 # =============================================================================
 # 3. MATHEMATICAL CORE FUNCTIONS
 # =============================================================================
@@ -115,7 +121,7 @@ beta_B, beta_T = h_B / k, h_T / k
 
 def characteristic_equation(w, beta_1, beta_2, L):
     """Symmetric transcendental equation for Robin-Robin boundaries."""
-    return (beta_1 + beta_2) * w * np.cos(w * L) + (beta_1 * beta_2 - w**2) * np.sin(w * L)
+    return (beta_1 + beta_2) * w * np.cos(w * L) + (beta_1 * beta_2 - w ** 2) * np.sin(w * L)
 
 
 def get_eigenvalues(beta_1, beta_2, L, num_terms):
@@ -136,7 +142,7 @@ def get_eigenvalues(beta_1, beta_2, L, num_terms):
     for idx in sign_changes:
         # Crucial: cast to explicit python floats to ensure scalar behavior
         w_start = float(w_scan[idx])
-        w_end = float(w_scan[idx+1])
+        w_end = float(w_scan[idx + 1])
 
         f_start = characteristic_equation(w_start, beta_1, beta_2, L)
         f_end = characteristic_equation(w_end, beta_1, beta_2, L)
@@ -176,27 +182,27 @@ def eval_norm(w, beta_1, L):
     if np.isclose(w, 0.0):
         return L
     c = beta_1 / w
-    return (L / 2.0) * (1.0 + c**2) + (np.sin(2.0 * w * L) / (4.0 * w)) * (1.0 - c**2) + (c / w) * (np.sin(w * L)**2)
+    return (L / 2.0) * (1.0 + c ** 2) + (np.sin(2.0 * w * L) / (4.0 * w)) * (1.0 - c ** 2) + (c / w) * (
+            np.sin(w * L) ** 2)
 
 
-def build_power_map(x, y, mus, sigmas, amplitudes, clip_threshold = 1e-4):
-
+def build_power_map(x, y, mus, sigmas, amplitudes, clip_threshold=1e-4):
     Xp, Yp = np.meshgrid(x, y, indexing="xy")
     P = np.zeros_like(Xp)
 
     for (x0, y0), sigma, A in zip(mus, sigmas, amplitudes):
         P += A * np.exp(
-            -((Xp - x0)**2 + (Yp - y0)**2)
-            / (2 * sigma**2)
+            -((Xp - x0) ** 2 + (Yp - y0) ** 2)
+            / (2 * sigma ** 2)
         )
 
     P[P < clip_threshold] = 0.0
     return P
 
+
 # =============================================================================
 # 4. EXECUTE SAMPLE
 # =============================================================================
-
 
 # Gaussian Heat Sources
 for case in sampling_plan:
@@ -211,13 +217,13 @@ for case in sampling_plan:
 
     # Format: [Amplitude (Aj), x_center, y_center, spread (sigma)]
     sources = [
-        [power / (2*np.pi * sigma**2),   loc_x,
-         loc_y,  sigma],  # Source 1
-        [0.0,   0.0,      0.0,      1.0],   # Source 2: Unused (Amplitude = 0)
-        [0.0,   0.0,      0.0,      1.0],   # Source 3: Unused (Amplitude = 0)
-        [0.0,   0.0,      0.0,      1.0]    # Source 4: Unused (Amplitude = 0)
+        [power / (2 * np.pi * sigma ** 2), loc_x,
+         loc_y, sigma],  # Source 1
+        [0.0, 0.0, 0.0, 1.0],  # Source 2: Unused (Amplitude = 0)
+        [0.0, 0.0, 0.0, 1.0],  # Source 3: Unused (Amplitude = 0)
+        [0.0, 0.0, 0.0, 1.0]  # Source 4: Unused (Amplitude = 0)
     ]
-    
+
     # Build powermap for ML input
     mus_sources = [
         (loc_x, loc_y)
@@ -228,7 +234,7 @@ for case in sampling_plan:
     ]
 
     amps_sources = [
-        power / (2*np.pi*sigma**2)
+        power / (2 * np.pi * sigma ** 2)
     ]
 
     P = build_power_map(
@@ -239,7 +245,7 @@ for case in sampling_plan:
         amps_sources
     )
 
-    P_plot =  build_power_map(
+    P_plot = build_power_map(
         x_plot,
         y_plot,
         mus_sources,
@@ -251,11 +257,9 @@ for case in sampling_plan:
     lambdas = get_eigenvalues(beta_L, beta_R, L, N_max)
     mus = get_eigenvalues(beta_B, beta_T, W, M_max)
 
-    
     # Initialize array with ambient background temperature
     T = np.zeros_like(X) + Ta
     T_plot = np.zeros_like(X_plot) + Ta
-
 
     # Field reconstruction (Series summation)
 
@@ -287,11 +291,11 @@ for case in sampling_plan:
 
                 # Narrow gaussian analytical scaling integration
                 source_contribution = (
-                    A_j * (sigma_j**2) * np.exp(-0.5 * (lam_n**2 + mu_m**2) * sigma_j**2) * X_n_xj * Y_m_yj)
+                        A_j * (sigma_j ** 2) * np.exp(-0.5 * (lam_n ** 2 + mu_m ** 2) * sigma_j ** 2) * X_n_xj * Y_m_yj)
                 source_sum += source_contribution
 
             # Complete Fourier-Coefficient a_nm computation
-            eig_sum = lam_n**2 + mu_m**2
+            eig_sum = lam_n ** 2 + mu_m ** 2
 
             if eig_sum < 1e-12:
                 continue
@@ -308,25 +312,25 @@ for case in sampling_plan:
             T_plot += a_nm * X_n_plot * Y_m_plot
 
     results.append({
-        "Case":     f"Case {case['num']}",
-        "Label":    case["label"],
-        "Power_W":  power,
-        "x_mm":      loc_x * 1e3,
-        "y_mm":      loc_y * 1e3,
+        "Case": f"Case {case['num']}",
+        "Label": case["label"],
+        "Power_W": power,
+        "x_mm": loc_x * 1e3,
+        "y_mm": loc_y * 1e3,
         "Sigma": case["sigma"],
-        "Tmax_C":   np.max(T),
-        "Tavg_C":   np.mean(T),
+        "Tmax_C": np.max(T),
+        "Tavg_C": np.mean(T),
         "Pmax": np.max(P),
     })
 
     results_full.append({
-        "num":   case["num"],
+        "num": case["num"],
         "label": case["label"],
-        "T":     T.copy(),
+        "T": T.copy(),
         "power": power,
         "sigma": case["sigma"],
-        "x_mm":     loc_x * 1e3,
-        "y_mm":     loc_y * 1e3,
+        "x_mm": loc_x * 1e3,
+        "y_mm": loc_y * 1e3,
         "P": P.copy(),
     })
 
@@ -336,7 +340,7 @@ for case in sampling_plan:
         "num": case["num"],
         "label": case["label"],
     })
-    
+
     # Individual case plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7), subplot_kw={'box_aspect': 1})
 
@@ -373,21 +377,21 @@ for case in sampling_plan:
     cbar.set_label("Temperature [°C]", fontsize=11)
 
     ax2.set_title(
-    "Output: Steady-State Temperature",
-    fontsize=11,
-    fontweight="bold"
+        "Output: Steady-State Temperature",
+        fontsize=11,
+        fontweight="bold"
     )
-    
+
     ax2.set_xlabel("X [mm]", fontsize=11)
     ax2.set_ylabel("Y [mm]", fontsize=11)
-    
+
     # Overall Figure Details
     fig.suptitle(
-    "FR-4 Substrate: 2D Thermal Problem\n"
+        "FR-4 Substrate: 2D Thermal Problem\n"
         f"Case: {case['num']} | Source: {case['label']}"
-    ,
-    fontsize=13,
-    fontweight="bold"
+        ,
+        fontsize=13,
+        fontweight="bold"
     )
 
     plot_summary = (
@@ -412,13 +416,12 @@ for case in sampling_plan:
                   alpha=0.8)
     )
 
-    plt.tight_layout(rect=[0, 0.12, 1, 0.92])
+    plt.tight_layout(rect=[0.0, 0.15, 1.0, 0.95])
     plt.savefig(os.path.join(output_dir, f"{fname}.png"), dpi=300, bbox_inches="tight")
 
     plt.close()
-    
-    print(f"  → Done  (T_max = {np.max(T):.2f} °C)")
 
+    print(f"  → Done  (T_max = {np.max(T):.2f} °C)")
 
 # =============================================================================
 # 5. SAVE RESULTS
@@ -435,7 +438,7 @@ np.save("temperature.npy",
         all_T
         )
 
-all_P = np.array([item["P"] for item in results_full])
+all_P = np.array([item["P"] for item in results_full]) * 1e-6
 print(all_P.shape)
 np.save("powermaps.npy",
         all_P
@@ -446,8 +449,8 @@ np.save("powermaps.npy",
 # =============================================================================
 
 fig, axes = plt.subplots(
-    2, 4, 
-    figsize=(18, 9), 
+    2, 4,
+    figsize=(18, 9),
     subplot_kw={'box_aspect': 1},
     constrained_layout=True,
 )
@@ -459,10 +462,10 @@ fig.suptitle(
     fontweight="bold",
     linespacing=1.6,
 )
- 
+
 global_min = min(np.min(item["T_plot"]) for item in results_plot)
 global_max = max(np.max(item["T_plot"]) for item in results_plot)
- 
+
 last_contour = None
 for ax, item in zip(axes_flat, results_plot):
     last_contour = ax.contourf(
@@ -472,7 +475,7 @@ for ax, item in zip(axes_flat, results_plot):
         vmin=global_min,
         vmax=global_max,
     )
- 
+
     # Two-line title: bold case number on top, descriptive label below
     ax.set_title(
         f"Case {item['num']}\n{item['label']}",
@@ -483,18 +486,18 @@ for ax, item in zip(axes_flat, results_plot):
     ax.set_xlabel("X [mm]", fontsize=7.5)
     ax.set_ylabel("Y [mm]", fontsize=7.5)
     ax.tick_params(labelsize=7)
- 
+
 # Single colorbar anchored to the entire axes array — created ONCE, outside the loop
 cbar = fig.colorbar(
     last_contour,
-    ax=axes_flat.tolist(),   # shrinks all subplots uniformly
+    ax=axes_flat.tolist(),  # shrinks all subplots uniformly
     orientation="vertical",
     fraction=0.015,
     pad=0.03,
 )
 cbar.set_label("Temperature [°C]", fontsize=11, labelpad=10)
- 
+
 plt.savefig(os.path.join(output_dir, "summary_all_cases.png"), dpi=300, bbox_inches="tight")
 plt.close()
- 
+
 print("\nAll cases complete. Results saved to:", output_dir)

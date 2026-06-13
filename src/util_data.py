@@ -12,24 +12,32 @@ root = Path(__file__).resolve().parents[1]
 sol_path = root / "ground_truth"
 
 T = TypeVar('T')
+S = TypeVar('S')
+
 
 @dataclass
-class DataPair(Generic[T]):
+class DataPair(Generic[T, S]):
     ''' for input output pairs '''
-    name: str = None
-    input: T = None
-    solution: np.ndarray = None
+    name: str
+    input: T
+    solution: S
 
-    def load(self, filename, load_dir):
-        return None
+    def __init__(self, name: str, input:T, solution:S=None):
+        self.name = name
+        self.input = input
+        self.solution = solution
 
-class PMPair(DataPair[np.ndarray]):
+
+
+class PMPair(DataPair[torch.Tensor, torch.Tensor]):
     ''' for power map input and temp map output pairs '''
-    def get_tensors(self, device):
-        return (
-            torch.tensor(self.input.flatten(), dtype=float32).unsqueeze(-1).to(device),
-            torch.tensor(self.solution.flatten(), dtype=float32).unsqueeze(-1).to(device)
+    def __init__(self, name: str, input: np.ndarray, solution: np.ndarray):
+        super().__init__(
+            name=name,
+            input=torch.as_tensor(input, dtype=torch.float32).reshape(-1, 1),
+            solution=torch.as_tensor(solution, dtype=torch.float32),
         )
+
 
 # TODO: MAGGIE CONTEXT --> called by power_map_model
 def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
@@ -37,17 +45,14 @@ def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
     pairs = []
     p_maps = np.load(load_dir / "powermaps.npy")
     t_maps = np.load(load_dir / "temperature.npy")
-    case_names = [f"Case_{i}" for i in range(p_maps.shape[0])]
-    
+
     for i in range(p_maps.shape[0]):
-        pair = PMPair(
-            name=case_names[i],
-            input=p_maps[i],
-            solution=t_maps[i],
-        )
-        pairs.append(pair)
-        
+        pairs.append(PMPair(
+            name=f"Case_{i}", input=p_maps[i], solution=t_maps[i],
+        ))
+
     return pairs
+
 
 # Merged load_pwrmp and load_paired so commenting this for now
 # def load_paired_data(load_dir) -> list[DataPair]:

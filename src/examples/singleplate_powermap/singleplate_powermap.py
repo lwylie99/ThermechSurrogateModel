@@ -11,17 +11,15 @@ from src.mediums import Medium, Grid
 
 ''' DEFINE PLATE '''
 # define FR4 plate
-plate = Medium(conduction=0.3*1e-3, length=40.0, width=40.0) # Update conduction to W/(mm K)
+plate = Medium(conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
 plate.setConditions(PartSet(
     top=Insulated(),
     bottom=Insulated(),
-    left=Robin(h=10.0, ambient=25.0),
-    right=Robin(h=10.0, ambient=25.0),
+    left=Robin(h=1e-5, ambient=25.0),
+    right=Robin(h=1e-5, ambient=25.0),
     core=GaussianPde()
 ))
-grid = Grid()
-grid.length=48
-grid.width=48
+grid = Grid(length=48, width=48)
 # I added h (convection coefficient) to the definition of Robin so we will have to figure out
 
 ''' DEFINE MODEL '''
@@ -31,11 +29,16 @@ model = PowerMapPlateModel(
     plate=plate, grid=grid, temp_scale=100,
     model_dir=model_dir, core_only=True
 ) # train on just core to troubleshoot
-model.default_model(num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda')
+model.default_model(
+    num_blocks=6, num_hidden=512,
+    lr=1e-3, wt_decay=1e-4, device='cuda'
+)
+
+model_path = Path(r'../../examples/best_models/checkpoint_stable_singleplate_powermap_epoch100.pth').resolve()
+model.load_model(path=model_path)
 
 ''' TRAIN MODEL '''
 train_dir = Path(r'results').resolve()
-util_data.clear_dir(train_dir)
 fixed_spread, fixed_power = 3.0, 0.8
 fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
 power_sources = [
@@ -45,10 +48,13 @@ util_example.train_example(
     model, power_sources,
     epochs=1000, save_dir=train_dir
 )
-util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
+input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]
+util_example.eval_plate_example(model, power_data=input_data, save_dir=train_dir)
 
 ''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
-# TODO: mag pls help
-# analytical_pairs = util_data.load_pwrmp_data(Path(r'../../ground_truth').resolve()) # returns none if empty dir
-# eval_data = [analytical_pairs[0]] # should match wih power_sources for initial case
-# util_example.eval_pair_example(model, eval_data, train_dir)
+data_path = Path(r'../../ground_truth').resolve()
+analytical_pairs = util_data.load_pwrmp_data(data_path) # returns none if empty dir
+powermap_data = analytical_pairs[0].input # should match wih generated power_sources for initial case
+temp_data = analytical_pairs[0].solution # should match shape of the temp prediction
+print(powermap_data)
+util_example.eval_plate_example(model, analytical_pairs, train_dir)

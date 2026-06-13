@@ -15,12 +15,16 @@ def gradients(y, x, create_graph=True, retain_graph=True):
     )
 
 def jacobian(u, coords):
+    ''' Inputs: u = temp prediction (N, 1), coords[x, y] = spatial grid (N, 2)
+        Outputs: [du/dx, du/dy] = temperature flux (N, 2)
+    '''
     return gradients(u, coords)[0]
 
-def laplacian_jacobian(u, coords, conductivity=1):
+def laplacian_jacobian(u, coords, k=1):
+    ''' k is constant conductivity '''
     jac = jacobian(u, coords)
-    uxx = gradients(jac[..., 0] * conductivity, coords)[0][..., 0]
-    uyy = gradients(jac[..., 1] * conductivity, coords)[0][..., 1]
+    uxx = gradients(jac[..., 0] * k, coords)[0][..., 0]
+    uyy = gradients(jac[..., 1] * k, coords)[0][..., 1]
 
     return jac, uxx + uyy
 

@@ -11,17 +11,15 @@ from src.mediums import Medium, Grid
 
 ''' DEFINE PLATE '''
 # define FR4 plate
-plate = Medium(conduction=0.3*1e-3, length=40.0, width=40.0) # Update conduction to W/(mm K)
+plate = Medium(conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
 plate.setConditions(PartSet(
     top=Insulated(),
     bottom=Insulated(),
-    left=Robin(h=10.0, ambient=25.0),
-    right=Robin(h=10.0, ambient=25.0),
+    left=Robin(h=1e-5, ambient=25.0),
+    right=Robin(h=1e-5, ambient=25.0),
     core=GaussianPde()
 ))
-grid = Grid()
-grid.length=48
-grid.width=48
+grid = Grid(length=48, width=48)
 # I added h (convection coefficient) to the definition of Robin so we will have to figure out
 
 ''' DEFINE MODEL '''
@@ -31,14 +29,16 @@ model = PowerMapPlateModel(
     plate=plate, grid=grid, temp_scale=100,
     model_dir=model_dir, core_only=True
 ) # train on just core to troubleshoot
-model.default_model(num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda')
+model.default_model(
+    num_blocks=6, num_hidden=512,
+    lr=1e-3, wt_decay=1e-4, device='cuda'
+)
 
-model_path = Path(r'../../singleplate_powermap_success_v2/checkpoints/checkpoint_epoch100_.pth').resolve()
+model_path = Path(r'../../examples/best_models/checkpoint_stable_singleplate_powermap_epoch100.pth').resolve()
 model.load_model(path=model_path)
 
 ''' TRAIN MODEL '''
 train_dir = Path(r'results').resolve()
-util_data.clear_dir(train_dir)
 fixed_spread, fixed_power = 3.0, 0.8
 fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
 power_sources = [
@@ -46,7 +46,7 @@ power_sources = [
 ]
 util_example.train_example(
     model, power_sources,
-    epochs=1000, save_dir=train_dir
+    epochs=700, save_dir=train_dir
 )
 util_example.eval_plate_example(model, power_sources, save_dir=train_dir)
 

@@ -8,12 +8,6 @@ from torch import Tensor
 
 @dataclass
 class Component:
-    def __getitem__(self, item):
-        return getattr(self, item)
-
-    def __setitem__(self, item, value):
-        setattr(self, item, value)
-
     def asDict(self, clean=True):
         if not clean:
             return asdict(self)
@@ -38,6 +32,12 @@ class Component:
 
 @dataclass
 class EdgeSet(Component):
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def __setitem__(self, item, value):
+        setattr(self, item, value)
+
     top: Any = None
     bottom: Any = None
     left: Any = None
@@ -71,8 +71,6 @@ class NDComponent(ModularComponent):
     axis = EdgeSet(top=1, bottom=1, left=0, right=0)
     # direction of normal vector pointing outward
     out = EdgeSet(top=1, bottom=-1, left=-1, right=1)
-
-    # def __post_init__(self):
 
     def shape(self) -> tuple:
         return self.width, self.length  # (ny, nx) = (rows, cols) — numpy convention
