@@ -13,14 +13,14 @@ class Medium(NDComponent):
     ''' data for a thermal medium '''
     measure: str = ''
     conduction: Any = None
-    boundaries: PartSet = None
+    bcs: PartSet = None
 
     def setConditions(self, bounds: PartSet):
-        self.boundaries = bounds
+        self.bcs = bounds
         for part in self.axis.keys():
             # sets the outward directions and axis normal to each side
-            self.boundaries[part].axis = self.axis[part]
-            self.boundaries[part].direction = self.out[part]
+            self.bcs[part].axis = self.axis[part]
+            self.bcs[part].direction = self.out[part]
 
 
 @dataclass
