@@ -113,12 +113,10 @@ class ThermalModel2D(Component):
 
     def _build_grid_map(self, plot=False):
         ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
-        xs = torch.linspace(0, self.plate.length, self.grid.length)  # (20,)
-        ys = torch.linspace(0, self.plate.width, self.grid.width)  # (10,)
-        yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (10, 20) — dim0=y ✓
+        xs, ys, grid_map = util_torch.build_grid_map(self.plate.shape(), self.grid.shape())
         if plot:
-            return xs, ys
-        return torch.stack([xx, yy], dim=-1).reshape(-1, 2)  # (200, 2)
+            return xs, ys, grid_map
+        return grid_map  # (200, 2)
 
     def _grid_mask(self, part) -> Tensor:
         ''' a flat boolean mask for use on flattened (N, 2) coord tensor '''
@@ -130,12 +128,8 @@ class ThermalModel2D(Component):
     def _coords(self, part=None) -> Tensor:
         if part is None:
             return self.grid_map
-
         mask = self._grid_mask(part)
         return self.grid_map[mask]
-
-    def _model_parts(self, model_input: Tensor) -> torch.Tensor:
-        return torch.Tensor()
 
     def _model(self, model_input:Tensor=None) -> torch.Tensor:
         raw_out = self.model(model_input)
@@ -161,6 +155,7 @@ class PowerMapPlateModel(ThermalModel2D):
 
     def eval_plate(self, power: Gaussian, plot=False):
         with torch.enable_grad():
+            self.optimizer.zero_grad()
             power_map, coords, mod_in = self._build_input([power])
             temps, residuals, total_loss = self._model_plate(coords, mod_in, eval=plot)
 
@@ -185,12 +180,6 @@ class PowerMapPlateModel(ThermalModel2D):
                 best_loss = min(best_loss, last_loss.item())
                 loss_hist = loss_hist + p_losses
                 e += sub_e
-
-            print(f'BEST_LOSS: {best_loss}')
-
-            # if last_loss.item() <= 1.0:
-            #     cur_lr = self.optimizer.param_groups[0]['lr']
-            #     self.optimizer.param_groups[0]['lr'] = min(1e-4, cur_lr)
 
             if e % max(1, (epochs // 10)) == 0:
                 print('saving model checkpoint...')

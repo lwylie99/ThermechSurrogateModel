@@ -24,11 +24,7 @@ def eval_plate_example(model, power_data: list, save_dir=None):
         #     title = p.title()
 
         total_loss, temps, power_map, residuals = model.eval_plate(p, plot=True)
-
-        power_map = power_map.cpu().detach().numpy().reshape(model.grid.shape())
-        temps = temps.detach().cpu().numpy().reshape(model.grid.shape())
-        residuals = residuals.detach().cpu().numpy().reshape(model.grid.shape())
-        xs, ys = model._build_grid_map(plot=True)
+        xs, ys, grid_map = model._build_grid_map(plot=True)
         print(f"grid  --> len: {model.grid.length}, width: {model.grid.width}")
         print(f"plate --> len: {model.plate.length}, width: {model.plate.width}")
         print(f"shapes --> grid: {model.grid.shape()}, plate: {model.plate.shape()}")

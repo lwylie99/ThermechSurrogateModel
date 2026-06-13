@@ -14,7 +14,7 @@ def to_numpy(tns:list[Tensor], shape:tuple=None):
     for t in tns:
         n = t.cpu().detach().numpy()
         if shape is not None:
-            n.reshape(shape)
+            n = n.reshape(shape)
         nps.append(n)
     return nps
 
