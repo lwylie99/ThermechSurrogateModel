@@ -1,9 +1,6 @@
 import json
-import os
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, asdict
 from typing import Any
-
-from torch import Tensor
 
 
 @dataclass
@@ -20,7 +17,7 @@ class Component:
     def asJson(self, clean=True):
         return json.dumps(self.asDict(clean), sort_keys=False, indent=4)
 
-    def keys(self, clean=True):
+    def fields(self, clean=True):
         return list(self.asDict(clean).keys())
 
     def values(self, clean=True):
@@ -31,21 +28,34 @@ class Component:
 
 
 @dataclass
-class EdgeSet(Component):
+class CompSet(Component):
     def __getitem__(self, item):
         return getattr(self, item)
 
     def __setitem__(self, item, value):
         setattr(self, item, value)
 
+    def field_count(self) -> int:
+        return len(self.fields())
+
+    def set(self, value):
+        for f in self.fields(clean=False):
+            setattr(self, f, value)
+        return self
+
+
+@dataclass
+class EdgeSet(CompSet):
     top: Any = None
     bottom: Any = None
     left: Any = None
     right: Any = None
 
+
 @dataclass
 class PartSet(EdgeSet):
     core: Any = None
+
 
 @dataclass
 class ModularComponent(Component):
@@ -54,6 +64,7 @@ class ModularComponent(Component):
 
     def title(self):
         return f'Component at ({self.x}, {self.y})'
+
 
 @dataclass
 class NDComponent(ModularComponent):

@@ -1,19 +1,17 @@
 import random
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from math import floor
 from pathlib import Path
 
 import pandas as pd
 import torch
-from torch import nn, amp, optim, Tensor
+from torch import nn, optim, Tensor
 
 import util_tensor
-from components_thermal import BoundaryCondition
-from util_data import DataPair
-from loss import paired_loss
-from src import loss
-from src.components import Component, PartSet
+from loss import LossEngine
+from src.components import Component
+from src.components_thermal import Gaussian
 from src.mediums import Medium, Grid
-from src.components_thermal import Gaussian, GaussianPde
 
 
 class FourierFeatures(nn.Module):
@@ -25,6 +23,7 @@ class FourierFeatures(nn.Module):
     def forward(self, x):
         proj = x @ self.B  # (N, num_features//2)
         return torch.cat([torch.sin(proj), torch.cos(proj)], dim=-1)  # (N, num_features)
+
 
 class BasicMLP(nn.Module):
     ''' MLP with tanh activation and logits as output '''
@@ -40,9 +39,9 @@ class BasicMLP(nn.Module):
             nn.init.xavier_uniform_(l.weight)
             nn.init.zeros_(l.bias)
             self.layers += [l,
-                nn.Tanh(),
-                nn.Dropout(dropout)
-            ]
+                            nn.Tanh(),
+                            nn.Dropout(dropout)
+                            ]
             l_in = l_out
 
         # DO NOT INITIALIZE random wts for last layer
@@ -50,7 +49,7 @@ class BasicMLP(nn.Module):
             nn.Linear(l_in, num_out),
             nn.Tanh(),
             # nn.Softplus()
-        ] # TODO: new activation function
+        ]  # TODO: new activation function
         self.network = nn.Sequential(*self.layers)
 
     def forward(self, x):
@@ -58,15 +57,15 @@ class BasicMLP(nn.Module):
 
     def save_checkpoint(self, epoch, optimizer, loss, save_dir, check_name=''):
         checkpoint = {
-            'epoch': epoch,
-            'model_state_dict': self.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss
+            'epoch': epoch, 'model_state_dict': self.state_dict(),
+            'loss': loss, 'optimizer_state_dict': optimizer.state_dict()
         }
-        torch.save(checkpoint, save_dir/f'checkpoint{check_name}.pth')
+        torch.save(checkpoint, save_dir / f'checkpoint{check_name}.pth')
 
-    def load_checkpoint(self, optimizer, save_dir, check_name=''):
-        checkpoint = torch.load(save_dir/f'checkpoint{check_name}.pth', weights_only=False)
+    def load_checkpoint(self, optimizer, load_dir, check_name=''):
+        load_path = load_dir / f'checkpoint{check_name}.pth'
+        print(f'...loading model checkpoint from path: {load_path}')
+        checkpoint = torch.load(load_path, weights_only=False)
         self.load_state_dict(checkpoint['model_state_dict'])
         return optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -85,13 +84,15 @@ class ThermalModel2D(Component):
     grid: Grid = None
     grid_map: Tensor = None
 
-    _device = None
-    optimizer: optim.Optimizer = None
     model: BasicMLP = None
-    model_dir: Path = None
+    optimizer: optim.Optimizer = None
+    engine: LossEngine = None
+
+    checkpoint_dir: Path = None
+    _device = None
 
     temp_scale: float = None
-    core_only: bool = False    # if you want to train/eval core without BCs
+    core_only: bool = False  # if you want to train/eval core without BCs
 
     def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-3, wt_decay=1e-4, device='cuda'):
         device_str = device if torch.cuda.is_available() else "cpu"
@@ -102,14 +103,29 @@ class ThermalModel2D(Component):
         self.model = BasicMLP(num_in, num_out, num_blocks, num_hidden).to(self._device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=wt_decay)
 
-    def save_checkpoint(self, epoch, loss, name=''):
-        self.model.save_checkpoint(epoch, self.optimizer, loss, self.model_dir, check_name=f'_epoch{epoch}_{name}')
+    def set_lr(self, new_lr):
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = new_lr
 
-    def load_model(self, path=''):
-        self.model.load_model(self.optimizer, path=path)
+    def dec_lr(self, divisor):
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = param_group['lr'] / divisor
 
-    def load_checkpoint(self, epoch, name=''):
-        self.model.load_checkpoint(self.optimizer, self.model_dir, check_name=f'_epoch{epoch}_{name}')
+    def save_checkpoint(self, loss, name=''):
+        self.model.save_checkpoint(
+            epoch=self.engine.e(), optimizer=self.optimizer, loss=loss,
+            save_dir=self.checkpoint_dir, check_name=f'_epoch{self.engine.e()}_{name}'
+        )
+
+    def load_model(self, load_path=''):
+        self.model.load_model(self.optimizer, path=load_path)
+        self.engine = LossEngine()
+
+    def load_checkpoint(self, epoch, name='', load_dir=None):
+        if load_dir is None:
+            load_dir = self.checkpoint_dir
+        self.model.load_checkpoint(self.optimizer, load_dir, check_name=f'_epoch{epoch}_{name}')
+        self.engine = LossEngine().load_hist(load_dir, epoch=epoch)
 
     def _build_grid_map(self, plot=False):
         ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
@@ -131,13 +147,10 @@ class ThermalModel2D(Component):
         mask = self._grid_mask(part)
         return self.grid_map[mask]
 
-    def _model(self, model_input:Tensor=None) -> torch.Tensor:
+    def _model(self, model_input: Tensor = None) -> torch.Tensor:
         raw_out = self.model(model_input)
         return raw_out * self.temp_scale
 
-    def _apply_loss(self, total_loss: Tensor):
-        total_loss.backward(retain_graph=True)
-        self.optimizer.step()
 
 @dataclass
 class PowerMapPlateModel(ThermalModel2D):
@@ -153,7 +166,7 @@ class PowerMapPlateModel(ThermalModel2D):
     def default_model(self, num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda'):
         self.build_model(3, 1, num_blocks, num_hidden, lr, wt_decay, device)
 
-    def eval_plate(self, power:list[Gaussian]=None, power_map=None, plot=False):
+    def eval_plate(self, power: list[Gaussian] = None, power_map=None, plot=False):
         with torch.enable_grad():
             self.optimizer.zero_grad()
             power_map, coords, mod_in = self._build_input(power=power, power_map=power_map)
@@ -165,66 +178,52 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return total_loss
 
-
-    def train_model(self, power_data: list, epochs=24) -> pd.DataFrame:
-        last_loss, loss_hist = float('inf'), []
-        best_loss = last_loss
+    def train_model(self, power_data: list, epochs=24, sub_e=1) -> pd.DataFrame:
+        check_int = min(1000, floor(epochs // 3))
+        total_epochs = self.engine.e() + epochs
         power_shuffle = power_data.copy()
-
-        e, sub_scale, sub_e = 0, 1, 1
-        while e < epochs:
+        running_loss = 0.0
+        while self.engine.e() < total_epochs:
             random.shuffle(power_shuffle)
             for p in power_shuffle:
-                print(f'EPOCH: {e}, power: ', p)
-                last_loss, p_losses = self._train_plate(p, sub_e)
-                best_loss = min(best_loss, last_loss.item())
-                loss_hist = loss_hist + p_losses
-                e += sub_e
+                last_loss = self._train_plate(p, sub_e)
+                running_loss += last_loss.item() / check_int
+            if  (self.engine.e()-check_int) % check_int == 0:
+                print(f'EPOCH[{self.engine.e():5}/{total_epochs:<5}] loss --> '
+                      f'avg: {running_loss}, last: ', self.engine.best_loss())
+                running_loss = 0.0
+                self.save_checkpoint(loss=last_loss)
 
-            if e % max(1, (epochs // 10)) == 0:
-                print('saving model checkpoint...')
-                self.save_checkpoint(e, last_loss)
-
-            if e >= epochs:
-                print('training complete, saving last checkpoint...')
-                self.save_checkpoint(e, last_loss)
-                break
-
-        return pd.DataFrame(loss_hist)
+        print('training complete, saving last checkpoint...')
+        self.save_checkpoint(loss=last_loss)
+        self.engine.save_hist(self.checkpoint_dir)
+        return pd.DataFrame(self.engine.hist)
 
     def _train_plate(self, power, epochs=1, log_epochs=False):
         ''' train across all points on plate '''
-        if self.model is None:
-            self.default_model()
-        self.model.train()
-
-        parts = PartSet().keys()
-        if self.core_only:
-            parts = ['core']
-
-        loss_list = []
-        total_loss = torch.tensor(0.0, device=self._device, dtype=torch.float32)
+        parts = ['core'] if self.core_only else self.engine.loss_parts()
+        total_loss = self.engine.new_epoch().to(self._device)
         for e in range(epochs):
             self.optimizer.zero_grad()
-
-            loss_parts = dict()
-            total_loss = torch.tensor(0.0, device=self._device, dtype=torch.float32)
+            total_loss = self.engine.new_epoch().to(self._device)
             for part in parts:
-                power_map, coords, mod_in = self._build_input([power])
+                power_map, coords, mod_in = self._build_input([power], part=part)
                 temps, cur_loss = self._model_plate(coords, mod_in)
+                cur_loss = cur_loss * coords.shape[0]
                 total_loss = total_loss + cur_loss
-                loss_parts[part] = cur_loss.item()
+                self.engine.add_part(part, cur_loss)
 
-            self._apply_loss(total_loss)
-            loss_parts['total'] = total_loss.item()
-            loss_list.append(loss_parts)
+            total_loss.backward(retain_graph=True)
+            self.optimizer.step()
+            self.engine.save_epoch(total_loss.item())
 
-            if log_epochs and (e == epochs - 1 or e % (epochs // 2) == 0):
+            if log_epochs and (self.engine.e() == epochs - 1 or self.engine.e() % (epochs // 2) == 0):
                 print(f'\tPWR_EPOCH: {e}, total_loss: ', total_loss)
 
-        return total_loss, loss_list
+        return total_loss
 
-    def _build_input(self, power: list[Gaussian]=None, power_map=None, part:str=None) -> tuple[Tensor, Tensor, Tensor]:
+    def _build_input(self, power: list[Gaussian] = None, power_map=None, part: str = None) -> tuple[
+        Tensor, Tensor, Tensor]:
         coords = self._coords(part).to(self._device)
 
         if power is not None:
@@ -236,14 +235,13 @@ class PowerMapPlateModel(ThermalModel2D):
 
         mod_in = torch.cat(
             [coords.requires_grad_(True), power_map.requires_grad_(True)],
-        dim=-1).requires_grad_(True)
+            dim=-1).requires_grad_(True)
         return power_map, coords, mod_in
 
-    def _model_plate(self, coords, model_input, part:str='core', eval=False) -> tuple:
+    def _model_plate(self, coords, model_input, part: str = 'core', eval=False) -> tuple:
         preds = self._model(model_input)
         bc = self.plate.bcs[part]
         cur_loss = bc.loss(u=preds, coords=coords, k=self.plate.conduction)
-        cur_loss = cur_loss * coords.shape[0]
         if eval:
             residuals = bc.residual(u=preds, coords=coords, k=self.plate.conduction)
             return preds, residuals, cur_loss

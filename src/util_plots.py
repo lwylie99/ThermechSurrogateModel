@@ -12,7 +12,7 @@ def plot_bc_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
     for col in df.columns:
         if col == 'total':
             continue
-        ax.plot(df.index, df[col].dropna(), label=col, linewidth=1.5, linestyle='-')
+        ax.plot(df.index, df[col].dropna(), label=col, linewidth=0.5, linestyle='-')
 
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
@@ -29,12 +29,12 @@ def plot_bc_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
         df.to_csv(save_dir / "loss_history.csv")
         print(f"Saved to {save_dir}")
 
-    plt.show()
+    #plt.show()
 
 
 def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df.index, df['total'].dropna(), label='total', linewidth=2.5, linestyle='--')
+    ax.plot(df.index, df['total'].dropna(), label='total', linewidth=0.5, linestyle='-')
 
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
@@ -50,7 +50,7 @@ def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
         fig.savefig(save_dir / "total_loss_plot.png", dpi=150)
         print(f"Saved to {save_dir}")
 
-    plt.show()
+    #plt.show()
 
 
 # TODO: MAGGIE - this would be the plot comparing predictions
@@ -58,7 +58,7 @@ def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
 def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None, save_suffix=''):
     # place holder --> could replace w something like
     # ground_truth_class.maggie_plot_function(loss, preds_np, xs, ys)
-
+    # preds_np = preds_np / 200 + 25
     # Calculate absolute error
     error_np = np.abs(preds_np - truth_np)
 
@@ -97,7 +97,7 @@ def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None,
         plt.savefig(path, dpi=150)
         print(f'Saved comparison to {path}')
 
-    plt.show()
+    #plt.show()
 
 
 # TODO: MAGGIE CONTEXT -->  - below are plot methods mostly for trouble shooting
@@ -107,6 +107,7 @@ def plot_predicted_temperature(temps, xs, ys, title='', save_dir=None, save_suff
     """
     Plots predicted temperature field from the PINN model.
     """
+    # temps = temps / 200 + 25
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.contourf(xs, ys, temps, levels=50, cmap='hot')
     # ax.scatter(power_source.x, power_source.y, c='cyan', marker='x', s=100, label='Heat source')
@@ -123,7 +124,7 @@ def plot_predicted_temperature(temps, xs, ys, title='', save_dir=None, save_suff
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
 
-    plt.show()
+    #plt.show()
 
 
 def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, save_suffix=''):
@@ -131,6 +132,7 @@ def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, sa
     Plots predicted vs analytical temperature fields side by side.
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
+    # temps = temps / 200 + 25
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     im0 = axes[0].contourf(xs, ys, temps, levels=50, cmap='hot')
@@ -155,7 +157,7 @@ def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, sa
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
 
-    plt.show()
+    #plt.show()
 
 # TODO: MAGGIE - this one is just for guassian solutions,
 #  its gross tbh but it lets me compare the temp range mostly
@@ -240,7 +242,7 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
 
-    plt.show()
+    #plt.show()
 
 def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffix=''):
     fig, ax = plt.subplots(figsize=(7, 6))
@@ -270,4 +272,4 @@ def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffi
         plt.savefig(path, dpi=150)
         print(f'Saved signed residual map to {path}')
 
-    plt.show()
+    #plt.show()

@@ -27,7 +27,7 @@ model_dir = Path(r'checkpoints').resolve()
 util_data.clear_dir(model_dir)
 model = PowerMapPlateModel(
     plate=plate, grid=grid, temp_scale=100,
-    model_dir=model_dir, core_only=True
+    checkpoint_dir=model_dir, core_only=True
 ) # train on just core to troubleshoot
 model.default_model(
     num_blocks=6, num_hidden=512,
