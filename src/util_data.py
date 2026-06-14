@@ -70,3 +70,7 @@ def clear_dir(dir_path):
         file_path = os.path.join(dir_path, filename)
         if os.path.isfile(file_path):
             os.remove(file_path)
+
+def last_file(dir: Path) -> str:
+    files = sorted(f for f in dir.iterdir() if f.is_file())
+    return files[-1].name if files else None

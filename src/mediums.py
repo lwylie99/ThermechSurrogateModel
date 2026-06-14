@@ -17,7 +17,7 @@ class Medium(NDComponent):
 
     def setConditions(self, bounds: PartSet):
         self.bcs = bounds
-        for part in self.axis.keys():
+        for part in self.axis.fields():
             # sets the outward directions and axis normal to each side
             self.bcs[part].axis = self.axis[part]
             self.bcs[part].direction = self.out[part]

@@ -26,12 +26,12 @@ def get_exp_model_setup():
 
     check_dir = Path(r'checkpoints').resolve()
     model = PowerMapPlateModel(
-        plate=plate, grid=grid, temp_scale=10,
+        plate=plate, grid=grid, temp_scale=100,
         checkpoint_dir=check_dir, core_only=True
     ) # train on just core to troubleshoot
     model.default_model(
         num_blocks=6, num_hidden=512,
-        lr=1e-3, wt_decay=1e-4, device='cuda'
+        lr=1e-4, wt_decay=1e-4, device='cuda'
     )
     print('PINN MODEL SETUP: \n', model.model)
     return model
@@ -58,26 +58,26 @@ model = get_exp_model_setup()
 power_sources, analytical_pairs = get_exp_data()
 train_dir = get_exp_results_dir()
 
-''' TRAIN MODEL '''
-model_path = Path(r'../best_models/best_checkpoints/checkpoint_initialwts_oneplate_pwrmp_epoch100.pth').resolve()
-model.load_model(model_path)
-# load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
-# model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-# model.load_checkpoint(epoch=1000)
+# ''' TRAIN MODEL '''
+# # model_path = Path(r'../best_models/best_checkpoints/checkpoint_initialwts_oneplate_pwrmp_epoch100.pth').resolve()
+# # model.load_model(model_path)
+# # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
+# # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
+# model.load_checkpoint(epoch=8658)
 # model.set_lr(1e-4)
-print('OPTIMIZER: \n', model.optimizer)
-
-util_data.clear_dir(model.checkpoint_dir)
-util_example.train_example(
-    model=model, power_data=power_sources,
-    epochs=600, save_dir=train_dir
-)
-
-print('\nEVAL TRAIN PERFORMANCE... ')
-input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]
-util_example.eval_plate_example(model, power_data=input_data, save_dir=train_dir)
-
-''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
-
-print('\nEVAL ANALYTICAL PERFORMANCE... ')
-util_example.eval_plate_example(model, analytical_pairs, train_dir)
+# print('OPTIMIZER: \n', model.optimizer)
+#
+# util_data.clear_dir(model.checkpoint_dir)
+# util_example.train_example(
+#     model=model, power_data=power_sources,
+#     epochs=9000-8658, save_dir=train_dir
+# )
+#
+# print('\nEVAL TRAIN PERFORMANCE... ')
+# input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]
+# util_example.eval_plate_example(model, power_data=input_data, save_dir=train_dir)
+#
+# ''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
+#
+# print('\nEVAL ANALYTICAL PERFORMANCE... ')
+# util_example.eval_plate_example(model, analytical_pairs, train_dir)
