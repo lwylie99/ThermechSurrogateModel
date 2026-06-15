@@ -26,3 +26,14 @@ def build_grid_map(dimsA:tuple, dimsB:tuple):
     grid_map = torch.stack([xx, yy], dim=-1).reshape(-1, 2)
     return xs, ys, grid_map  # (200, 2)
 
+def normalize(tensor, vmin=None, vmax=None):
+    t_min = torch.min(tensor)
+    t_max = torch.max(tensor)
+    print(f'normalize: target=({vmin}, {vmax}), tensor range=[{t_min}, {t_max}]')
+    if t_max == t_min:
+        return torch.zeros_like(tensor)
+    # Scale to [0, 1] first, then scale into [vmin, vmax]
+    normalized = (tensor - t_min) / (t_max - t_min)
+    if vmin is not None and vmax is not None:
+        normalized = normalized * (vmax - vmin) + vmin
+    return normalized

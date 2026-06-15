@@ -2,7 +2,7 @@ from pathlib import Path
 
 import util_data
 import util_example
-from examples.singleplate_powermap.oneplate import get_exp_model_setup, get_exp_data, get_exp_results_dir
+from examples.best_models.oneplate_7blks_normallized.oneplate import get_exp_model_setup, get_exp_data, get_exp_results_dir
 
 ''' LOAD EXP SETUP '''
 model = get_exp_model_setup()

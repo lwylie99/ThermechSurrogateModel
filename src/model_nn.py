@@ -47,8 +47,8 @@ class BasicMLP(nn.Module):
         # DO NOT INITIALIZE random wts for last layer
         self.layers += [
             nn.Linear(l_in, num_out),
-            nn.Tanh(),
-            # nn.Softplus()
+            # nn.Tanh(),
+            nn.Softplus()
         ]  # TODO: new activation function
         self.network = nn.Sequential(*self.layers)
 
@@ -165,33 +165,49 @@ class PowerMapPlateModel(ThermalModel2D):
 
     def default_model(self, num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda'):
         self.build_model(3, 1, num_blocks, num_hidden, lr, wt_decay, device)
+        self.engine = LossEngine()
 
-    def eval_plate(self, power: list[Gaussian] = None, power_map=None, plot=False):
+    def eval_plate(self, power:list[Gaussian]=None, power_map=None, plot=False, normal:tuple=None):
         with torch.enable_grad():
             self.optimizer.zero_grad()
             power_map, coords, mod_in = self._build_input(power=power, power_map=power_map)
             temps, residuals, total_loss = self._model_plate(coords, mod_in, eval=plot)
 
             if plot:
+                if normal is not None:
+                    print(f'...normalizing predictions between {normal}')
+                    temps = util_tensor.normalize(temps, normal[0], normal[1])
                 nps = util_tensor.to_numpy([temps, power_map, residuals], self.grid.shape())
                 return total_loss, nps[0], nps[1], nps[2]
 
         return total_loss
 
+    def normalize(tensor, min=None, max=None):
+        if min is None:
+            min = torch.min(tensor)
+        if max is None:
+            max = torch.max(tensor)
+        # Avoid division by zero if all elements are identical
+        if max == min:
+            return torch.zeros_like(tensor)
+        return (tensor - min) / (max - min)
+
     def train_model(self, power_data: list, epochs=24, sub_e=1) -> pd.DataFrame:
+        start_epoch = self.engine.e()
         check_int = min(1000, floor(epochs // 3))
-        total_epochs = self.engine.e() + epochs
+        epochs = self.engine.e() + epochs
         power_shuffle = power_data.copy()
-        running_loss = 0.0
-        while self.engine.e() < total_epochs:
+        avg_loss = 0.0
+        while self.engine.e() < epochs:
             random.shuffle(power_shuffle)
             for p in power_shuffle:
                 last_loss = self._train_plate(p, sub_e)
-                running_loss += last_loss.item() / check_int
-            if  (self.engine.e()-check_int) % check_int == 0:
-                print(f'EPOCH[{self.engine.e():5}/{total_epochs:<5}] loss --> '
-                      f'avg: {running_loss}, last: ', self.engine.best_loss())
-                running_loss = 0.0
+                avg_loss += last_loss.item() / check_int
+            if self.engine.e() == start_epoch or self.engine.e() % check_int == 0:
+                avg_loss /= (check_int if self.engine.e() == start_epoch else 1)
+                print(f'EPOCH[{self.engine.e():5}/{epochs:<5}] loss --> '
+                      f'avg: {avg_loss}, last: ', self.engine.best_loss())
+                avg_loss = 0.0
                 self.save_checkpoint(loss=last_loss)
 
         print('training complete, saving last checkpoint...')

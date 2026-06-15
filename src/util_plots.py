@@ -34,7 +34,10 @@ def plot_bc_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
 
 def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df.index, df['total'].dropna(), label='total', linewidth=0.5, linestyle='-')
+    if 'epoch' in df:
+        ax.plot(df['epoch'], df['total'].dropna(), label='total', linewidth=0.5, linestyle='-')
+    else:
+        ax.plot(df.index, df['total'].dropna(), label='total', linewidth=0.5, linestyle='-')
 
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")

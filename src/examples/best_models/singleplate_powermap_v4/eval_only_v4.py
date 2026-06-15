@@ -15,7 +15,7 @@ print('OPTIMIZER: \n', model.optimizer)
 ''' EVAL MODEL '''
 print('\nEVAL PHYS PERFORMANCE... ')
 input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]
-util_example.eval_plate_example(model, power_data=input_data, save_dir=train_dir)
+util_example.eval_plate_example(model, power_data=input_data, save_dir=train_dir, scaled=True)
 
 print('\nEVAL ANALYTICAL PERFORMANCE... ')
 util_example.eval_plate_example(model, analytical_pairs, train_dir)
