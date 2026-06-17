@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import Tensor
 
@@ -37,3 +38,12 @@ def normalize(tensor, vmin=None, vmax=None):
     if vmin is not None and vmax is not None:
         normalized = normalized * (vmax - vmin) + vmin
     return normalized
+
+def normalize_np(arr, vmin=None, vmax=None):
+    if vmin is None:
+        vmin = np.min(arr)
+    if vmax is None:
+        vmax = np.max(arr)
+    arr = (arr - vmin) / (vmax - vmin)
+    print(arr)
+    return arr

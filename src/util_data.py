@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TypeVar, Generic, Any
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import Tensor, float32
 
@@ -74,3 +75,12 @@ def clear_dir(dir_path):
 def last_file(dir: Path) -> str:
     files = sorted(f for f in dir.iterdir() if f.is_file())
     return files[-1].name if files else None
+
+def compress_dataframe(df: pd.DataFrame, x: int) -> pd.DataFrame:
+    chunk_ids = np.arange(len(df)) // x
+    reduced = df.groupby(chunk_ids).mean().reset_index(drop=True)
+
+    # First row index of each chunk
+    reduced.insert(0, 'epoch', np.arange(len(reduced)) * x)
+
+    return reduced

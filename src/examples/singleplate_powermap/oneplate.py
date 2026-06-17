@@ -27,7 +27,7 @@ def get_exp_model_setup():
     check_dir = Path(r'checkpoints').resolve()
     model = PowerMapPlateModel(
         plate=plate, grid=grid, temp_scale=8,
-        checkpoint_dir=check_dir, core_only=True
+        checkpoint_dir=check_dir, core_only=False
     ) # train on just core to troubleshoot
     model.default_model(
         num_blocks=7, num_hidden=512,
@@ -60,29 +60,29 @@ if __name__ == "__main__":
     # model.load_model(model_path)
     # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
     # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-    model.load_checkpoint(epoch=5000)
+    model.load_checkpoint(epoch=1000)
 
     ''' when predictions become circle, lr should be set 10 1e-4 
         eventually want to reduce temp scale to 64->32-> ...
     '''
-    model.set_lr(1e-4)
-    model.temp_scale=8
+    model.set_lr(1e-3)
+    model.temp_scale=64
     print('OPTIMIZER: \n', model.optimizer)
 
     util_data.clear_dir(model.checkpoint_dir)
     util_data.clear_dir(train_dir)
     util_example.train_example(
         model=model, power_data=power_sources,
-        epochs=5000, save_dir=train_dir, compress=None
+        epochs=1000, save_dir=train_dir, compress=4
     )
 
     print('\nEVAL TRAIN PERFORMANCE... ')
     input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]
     util_example.eval_plate_example(model,
-        power_data=input_data, save_dir=train_dir, normal=True #, inced=0,
+        power_data=input_data, save_dir=train_dir #, normal=True #, inced=0,
     )
 
     ''' EVAL MODEL WITH ANALYTICAL SOLUTION '''
 
     print('\nEVAL ANALYTICAL PERFORMANCE... ')
-    util_example.eval_plate_example(model, analytical_pairs, train_dir)
+    util_example.eval_plate_example(model, power_data=input_data, save_dir=train_dir)

@@ -182,19 +182,9 @@ class PowerMapPlateModel(ThermalModel2D):
 
         return total_loss
 
-    def normalize(tensor, min=None, max=None):
-        if min is None:
-            min = torch.min(tensor)
-        if max is None:
-            max = torch.max(tensor)
-        # Avoid division by zero if all elements are identical
-        if max == min:
-            return torch.zeros_like(tensor)
-        return (tensor - min) / (max - min)
-
     def train_model(self, power_data: list, epochs=24, sub_e=1) -> pd.DataFrame:
         start_epoch = self.engine.e()
-        check_int = min(1000, floor(epochs // 3))
+        check_int = min(500, floor(epochs // 3))
         epochs = self.engine.e() + epochs
         power_shuffle = power_data.copy()
         avg_loss = 0.0
@@ -225,7 +215,7 @@ class PowerMapPlateModel(ThermalModel2D):
             for part in parts:
                 power_map, coords, mod_in = self._build_input([power], part=part)
                 temps, cur_loss = self._model_plate(coords, mod_in)
-                cur_loss = cur_loss * coords.shape[0]
+                cur_loss = cur_loss * (self.grid_map.shape[0]**2 / coords.shape[0])
                 total_loss = total_loss + cur_loss
                 self.engine.add_part(part, cur_loss)
 
