@@ -43,7 +43,7 @@ def get_exp_data():
         Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
     ]
 
-    data_path = Path(r'../../ground_truth').resolve()
+    data_path = Path(r'../../../ground_truth').resolve()
     analytical_pairs = util_data.load_pwrmp_data(data_path)
     return power_sources, analytical_pairs
 

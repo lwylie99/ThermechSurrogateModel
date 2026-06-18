@@ -2,21 +2,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+from sphinx.cmd.quickstart import suffix
 
 from components import Component
 from components_thermal import GaussianPde
 from util_data import DataPair, PMPair
+from util_example import compress_dataframe
 
-def plot_bc_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
+
+def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_dir=None, suffix='', save_hist=True):
+    if compress is not None:
+        loss_hist = compress_dataframe(loss_hist, compress)
+
     fig, ax = plt.subplots(figsize=(10, 5))
-    for col in df.columns:
-        if col == 'total':
+    for col in loss_hist.columns:
+        if col == 'total' or col == 'epoch' or col == 'core':
             continue
-        ax.plot(df.index, df[col].dropna(), label=col, linewidth=0.5, linestyle='-')
+        ax.plot(loss_hist.index, loss_hist[col].dropna(), label=col, linewidth=0.5, linestyle='-')
 
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Loss")
-    ax.set_title("BC Loss")
+    ax.set_xlabel("Epoch", fontsize=12)
+    ax.set_ylabel("Loss", fontsize=12)
+    ax.set_title("Boundary Condition Loss", fontsize=20)
     ax.legend()
     if log_scale:
         ax.set_yscale('log')
@@ -25,29 +31,39 @@ def plot_bc_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
 
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_dir / "bc_loss_plot.png", dpi=150)
-        df.to_csv(save_dir / "loss_history.csv")
+        fig.savefig(save_dir / f"bc_loss_plot{suffix}.png", dpi=150)
+        if save_hist:
+            loss_hist.to_csv(save_dir / "loss_history.csv")
         print(f"Saved to {save_dir}")
 
     #plt.show()
 
 
-def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
+def plot_total_loss(loss_hist: pd.DataFrame, log_scale=False, save_dir=None, compress=None, suffix=''):
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df.index, df['total'].dropna(), label='total', linewidth=0.5, linestyle='-')
+    if compress is not None:
+        ax.plot(loss_hist.index, loss_hist['total'], label='raw_totals', linewidth=0.5, linestyle='-', alpha=0.6)
+        chist = compress_dataframe(loss_hist, compress)
+        ax.plot(chist['epoch'], chist['total'], label='smoothed', linewidth=1.0, linestyle='-', color='red')
+    else:
+        ax.plot(loss_hist.index, loss_hist['total'], label='total', linewidth=1.0, linestyle='-')
 
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Loss")
-    ax.set_title("Total Loss")
+    ax.set_xlabel("Epoch", fontsize=12)
+    ax.set_ylabel("Loss", fontsize=12)
+    ax.set_title("Total Loss", fontsize=20)
+    ax.tick_params(axis='both', which='major', labelsize=12)
     ax.legend()
+
     if log_scale:
         ax.set_yscale('log')
+        suffix = suffix+'_log'
+
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
 
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_dir / "total_loss_plot.png", dpi=150)
+        fig.savefig(save_dir / f"total_loss_plot{suffix}.png", dpi=150)
         print(f"Saved to {save_dir}")
 
     #plt.show()
@@ -55,7 +71,7 @@ def plot_total_loss(df: pd.DataFrame, log_scale=False, save_dir=None):
 
 # TODO: MAGGIE - this would be the plot comparing predictions
 #  (it can call other places if you want, just need the function to pass through here)
-def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None, save_suffix=''):
+def plot_analytical_comparison(preds_np, truth_np, xs, ys, title='', save_dir=None, save_suffix=''):
     # place holder --> could replace w something like
     # ground_truth_class.maggie_plot_function(loss, preds_np, xs, ys)
     # preds_np = preds_np / 200 + 25
@@ -71,25 +87,29 @@ def plot_paired_predictions(preds_np, truth_np, xs, ys, title='', save_dir=None,
 
     # Panel 1: Prediction
     im0 = axes[0].contourf(xs, ys, preds_np, levels=levels, cmap='hot')
-    axes[0].set_title(f'PINN Prediction\nRange: [{preds_np.min():.1f}, {preds_np.max():.1f}]')
-    fig.colorbar(im0, ax=axes[0])
+    axes[0].set_title(f'PINN Prediction [{preds_np.min():.1f}, {preds_np.max():.1f}]', fontsize=18)
+    cbar = fig.colorbar(im0, ax=axes[0])
+    cbar.ax.tick_params(labelsize=12)
 
     # Panel 2: Analytical (Ground Truth)
     im1 = axes[1].contourf(xs, ys, truth_np, levels=levels, cmap='hot')
-    axes[1].set_title(f'Analytical Truth\nRange: [{truth_np.min():.1f}, {truth_np.max():.1f}]')
-    fig.colorbar(im1, ax=axes[1])
+    axes[1].set_title(f'Analytical Truth [{truth_np.min():.1f}, {truth_np.max():.1f}]', fontsize=18)
+    cbar = fig.colorbar(im1, ax=axes[1])
+    cbar.ax.tick_params(labelsize=12)
 
     # Panel 3: Absolute Error
     # Using 'viridis' or 'plasma' helps highlight where the delta is highest
     im2 = axes[2].contourf(xs, ys, error_np, levels=50, cmap='viridis')
-    axes[2].set_title(f'Absolute Error\nMean: {np.mean(error_np):.2e}')
-    fig.colorbar(im2, ax=axes[2])
+    axes[2].set_title(f'Absolute Error [Mean: {np.mean(error_np):.2e}]', fontsize=18)
+    cbar = fig.colorbar(im2, ax=axes[2])
+    cbar.ax.tick_params(labelsize=12)
 
     for ax in axes:
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
+        ax.set_xlabel('x', fontsize=14)
+        ax.set_ylabel('y', fontsize=14)
+        ax.tick_params(axis='both', which='major', labelsize=14)
 
-    plt.suptitle(title, fontsize=14)
+    plt.suptitle(title, fontsize=24)
     plt.tight_layout()
 
     if save_dir:
@@ -112,7 +132,7 @@ def plot_predicted_temperature(temps, xs, ys, title='', save_dir=None, save_suff
     im = ax.contourf(xs, ys, temps, levels=50, cmap='hot')
     # ax.scatter(power_source.x, power_source.y, c='cyan', marker='x', s=100, label='Heat source')
     # ax.set_title(f'Predicted Temperature ({title}) (Loss: {loss.item()})')
-    ax.set_title(f'Predicted Temperature ({title})')
+    ax.set_title(f'Predicted Temperature ({title})', fontsize=18)
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.legend()
@@ -133,21 +153,25 @@ def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, sa
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
     # temps = temps / 200 + 25
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
     im0 = axes[0].contourf(xs, ys, temps, levels=50, cmap='hot')
-    axes[0].set_title(f'Predicted Temperature')
+    axes[0].set_title(f'Predicted Temperature', fontsize=18)
     axes[0].set_xlabel('x')
     axes[0].set_ylabel('y')
-    fig.colorbar(im0, ax=axes[0], label='Temp')
+    axes[0].tick_params(axis='both', which='major', labelsize=12)
+    cbar = fig.colorbar(im0, ax=axes[0], label='Temp')
+    cbar.ax.tick_params(axis='both', which='major', labelsize=12)
 
     im1 = axes[1].contourf(xs, ys, power_np, levels=50, cmap='plasma')
     # axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
-    axes[1].set_title(f'Power Map')
+    axes[1].set_title(f'Power Map', fontsize=18)
     axes[1].set_xlabel('x')
     axes[1].set_ylabel('y')
+    axes[1].tick_params(axis='both', which='major', labelsize=12)
     # axes[1].legend()
-    fig.colorbar(im1, ax=axes[1], label='Power (W)')
+    cbar = fig.colorbar(im1, ax=axes[1], label='Power (W)')
+    cbar.ax.tick_params(axis='both', which='major', labelsize=12)
 
     plt.suptitle(title)
     plt.tight_layout()
@@ -181,14 +205,14 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
     im0 = axes[0].contourf(xs, ys, preds_np, levels=50, cmap='hot')
-    axes[0].set_title('Predicted Temperature')
+    axes[0].set_title('Predicted Temperature', fontsize=18)
     axes[0].set_xlabel('x')
     axes[0].set_ylabel('y')
     fig.colorbar(im0, ax=axes[0], label='Temp')
 
     im1 = axes[1].contourf(xs, ys, power_np, levels=50, cmap='plasma')
     axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
-    axes[1].set_title(f'Power Input  (A={power_source.amplitude}, σ={power_source.spread})')
+    axes[1].set_title(f'Power Input  (A={power_source.amplitude}, σ={power_source.spread})', fontsize=18)
     axes[1].set_xlabel('x')
     axes[1].set_ylabel('y')
     axes[1].legend()
@@ -245,7 +269,7 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     #plt.show()
 
 def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffix=''):
-    fig, ax = plt.subplots(figsize=(7, 6))
+    fig, ax = plt.subplots(figsize=(7, 5))
     max_bound = np.max(np.abs(residuals_np))
 
     # Avoid a divide-by-zero or flat scale if residuals are exactly 0 everywhere
@@ -260,11 +284,13 @@ def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffi
         vmin=-max_bound,
         vmax=max_bound
     )
-
-    ax.set_title(f'PDE Residual Map ({title})\nRange: [{np.min(residuals_np):.2e}, {np.max(residuals_np):.2e}]')
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
+    #[{np.min(residuals_np): .2e}, {np.max(residuals_np): .2e}]
+    ax.set_title(f'PDE Residual Map ({title})', fontsize=18)
+    ax.set_xlabel('x', fontsize=12)
+    ax.set_ylabel('y', fontsize=12)
+    ax.tick_params(axis='both', which='major', labelsize=12)
     cbar = fig.colorbar(im, ax=ax, label='k∇²u + Q')
+    cbar.ax.tick_params(axis='both', which='major', labelsize=12)
     plt.tight_layout()
 
     if save_dir:

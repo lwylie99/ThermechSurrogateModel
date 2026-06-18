@@ -17,51 +17,60 @@ from util_plots import *
 #         )
 
 
-def eval_plate_example(trained_model, power_data: list, save_dir=None):
+def eval_plate_example(model, power_data: list, save_dir=None, inced=None, normal=False):
     for i in range(len(power_data)):
-        title = 'Gauss Power'
+        title = 'Gauss Center Power'
         p = power_data[i]
 
-        # if isinstance(p, Component):
-        #     title = p.title()
-        # print(p)
-
-        if isinstance(p, PMPair):
-            total_loss, temps, power_map, residuals = trained_model.eval_plate(power_map=p.input.to(trained_model._device), plot=True)
+        xs, ys, grid_map = model._build_grid_map(plot=True)
+        if isinstance(p, PMPair) and p.solution is not None:
+            print(f'solution shape: {p.solution.reshape(model.grid.shape()).shape}')
+            truth_np = util_tensor.to_numpy([p.solution],model.grid.shape())[0]
+            norm_range = (np.min(truth_np), np.max(truth_np)) if normal else None
+            total_loss, temps, power_map, residuals = model.eval_plate(
+                power_map=p.input.to(model._device), plot=True, normal=norm_range
+            )
+            plot_analytical_comparison(temps, truth_np, xs, ys,
+               title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
+            )
         else:
-            total_loss, temps, power_map, residuals = trained_model.eval_plate(power=p.input, plot=True)
-
-        temps = temps/100 + 25
-
-        xs, ys, grid_map = trained_model._build_grid_map(plot=True)
-        print(f"shapes --> grid: {trained_model.grid.shape()}, plate: {trained_model.plate.shape()}")
-        print(f"       --> power: {power_map.shape}, temps: {temps.shape}, xs: {xs.shape}, ys: {ys.shape}")
-
-        if p.solution is not None:
-            truth_np = util_tensor.to_numpy([p.solution.reshape(trained_model.grid.length, trained_model.grid.width)])[0]
-            plot_paired_predictions(
-                temps, truth_np, xs, ys,
-                title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
+            total_loss, temps, power_map, residuals = model.eval_plate(
+                power=p.input, power_map=None, plot=True
             )
 
-        plot_power_map_predictions(
-            temps, power_map, xs, ys,
+        if inced is not None:
+            temps = temps + inced
+
+        print(f"shapes --> grid: {model.grid.shape()}, plate: {model.plate.shape()}")
+        print(f"       --> power: {power_map.shape}, temps: {temps.shape}, xs: {xs.shape}, ys: {ys.shape}")
+
+        plot_power_map_predictions(temps, power_map, xs, ys,
             title=title, save_dir=save_dir, save_suffix=f'_p{i}'
         )
 
-        plot_pde_residuals(
-            residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_res_{i}'
-        )
-
+        plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_res_{i}')
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
 
-def train_example(model, power_data:list, epochs=100, save_dir=None):
+def train_example(model, power_data:list, epochs=100, save_dir=None, compress=None):
     print(f'\nBEGIN TRAINING ({epochs} Epochs)\n')
     loss_hist = model.train_model(power_data=power_data, epochs=epochs)
+    plot_example_losshist(trained_model=model, loss_hist=loss_hist, save_hist=True)
 
-    # TODO: MAGGIE CONTEXT --> this is where the total_loss_plot and the bc_loss_plot are produced
-    plot_bc_loss(loss_hist, log_scale=True, save_dir=save_dir)
-    plot_total_loss(loss_hist, log_scale=True, save_dir=save_dir)
+def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None, save_hist=False):
+    if loss_hist is None:
+        loss_hist = pd.DataFrame(trained_model.engine.hist.copy())
+
+    suffix=''
+    if epoch is not None:
+        loss_hist = loss_hist.iloc[:epoch]
+        suffix=f'{epoch}e'
+
+    plot_bc_loss(loss_hist, log_scale=True, compress=compress,
+         suffix=suffix, save_dir=save_dir, save_hist=save_hist
+    )
+    plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
+    plot_total_loss(loss_hist, log_scale=False, suffix=suffix, save_dir=save_dir, compress=compress)
+
 
 def latest_model_path(check_dir: Path) -> str:
     ''' returns the path checkpoint with the largest number of epochs '''
@@ -70,7 +79,3 @@ def latest_model_path(check_dir: Path) -> str:
     print(dir)  # confirm the path
     print(list(check_dir.iterdir()))  # confirm what's in it
     return util_data.last_file(check_dir)
-
-
-
-
