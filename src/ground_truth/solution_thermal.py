@@ -66,7 +66,7 @@ sampling_plan = [
     {"num": "08", "label": "Top-Left Corner", "power": 1.0, "x": 0.10, "y": 0.90, "sigma": 1.0},
 ]
 
-#sampling_plan = [sampling_plan[0]]
+sampling_plan = [sampling_plan[0]]
 
 
 def case_filename(case):
