@@ -56,7 +56,7 @@ BC_TOP = {"type": "Robin", "val": 10.0}
 
 # Sampling plan for heat sources
 sampling_plan = [
-    {"num": "01", "label": "Applied Parameters", "power": 0.8, "x": 0.50, "y": 0.50, "sigma": 3.0},
+    {"num": "01", "label": "Center – Low Power & Med Spread", "power": 0.8, "x": 0.50, "y": 0.50, "sigma": 3.0},
     {"num": "02", "label": "Center – Med Power", "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 1.0},
     {"num": "03", "label": "Center – High Power", "power": 1.2, "x": 0.50, "y": 0.50, "sigma": 1.0},
     {"num": "04", "label": "Center – Tight Spread", "power": 1.0, "x": 0.50, "y": 0.50, "sigma": 0.5},
@@ -66,7 +66,7 @@ sampling_plan = [
     {"num": "08", "label": "Top-Left Corner", "power": 1.0, "x": 0.10, "y": 0.90, "sigma": 1.0},
 ]
 
-sampling_plan = [sampling_plan[0]]
+#sampling_plan = [sampling_plan[0]]
 
 
 def case_filename(case):
