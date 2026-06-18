@@ -91,7 +91,6 @@ class ThermalModel2D(Component):
     checkpoint_dir: Path = None
     _device = None
 
-    temp_scale: float = None
     core_only: bool = False  # if you want to train/eval core without BCs
 
     def build_model(self, num_in, num_out, num_blocks, num_hidden, lr=1e-3, wt_decay=1e-4, device='cuda'):
@@ -119,13 +118,12 @@ class ThermalModel2D(Component):
 
     def load_model(self, load_path=''):
         self.model.load_model(self.optimizer, path=load_path)
-        self.engine = LossEngine()
 
     def load_checkpoint(self, epoch, name='', load_dir=None):
         if load_dir is None:
             load_dir = self.checkpoint_dir
         self.model.load_checkpoint(self.optimizer, load_dir, check_name=f'_epoch{epoch}_{name}')
-        self.engine = LossEngine().load_hist(load_dir, epoch=epoch)
+        self.engine.load_hist(load_dir, epoch=epoch)
 
     def _build_grid_map(self, plot=False):
         ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
@@ -165,7 +163,6 @@ class PowerMapPlateModel(ThermalModel2D):
 
     def default_model(self, num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda'):
         self.build_model(3, 1, num_blocks, num_hidden, lr, wt_decay, device)
-        self.engine = LossEngine()
 
     def eval_plate(self, power:list[Gaussian]=None, power_map=None, plot=False, normal:tuple=None):
         with torch.enable_grad():
@@ -183,7 +180,8 @@ class PowerMapPlateModel(ThermalModel2D):
         return total_loss
 
     def train_model(self, power_data: list, epochs=24, sub_e=1) -> pd.DataFrame:
-        start_epoch = self.engine.e()
+        start_epoch = self.engine.e() + 1
+        print(f"...start epoch: {start_epoch}")
         check_int = min(500, floor(epochs // 3))
         epochs = self.engine.e() + epochs
         power_shuffle = power_data.copy()
@@ -215,7 +213,8 @@ class PowerMapPlateModel(ThermalModel2D):
             for part in parts:
                 power_map, coords, mod_in = self._build_input([power], part=part)
                 temps, cur_loss = self._model_plate(coords, mod_in)
-                cur_loss = cur_loss * (self.grid_map.shape[0]**2 / coords.shape[0])
+                # print(f"loss = {cur_loss.item()} * {self.engine.wts[part]} * {self.engine.loss_scale}")
+                cur_loss = cur_loss * coords.shape[0] # #* self.engine.wts[part]
                 total_loss = total_loss + cur_loss
                 self.engine.add_part(part, cur_loss)
 
@@ -245,7 +244,7 @@ class PowerMapPlateModel(ThermalModel2D):
         return power_map, coords, mod_in
 
     def _model_plate(self, coords, model_input, part: str = 'core', eval=False) -> tuple:
-        preds = self._model(model_input)
+        preds = self.model(model_input) * self.engine.loss_scale
         bc = self.plate.bcs[part]
         cur_loss = bc.loss(u=preds, coords=coords, k=self.plate.conduction)
         if eval:

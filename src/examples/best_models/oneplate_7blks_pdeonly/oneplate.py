@@ -64,14 +64,14 @@ if __name__ == "__main__":
     # model.load_model(model_path)
     # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
     # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-    model.load_checkpoint(epoch=500)
+    # model.load_checkpoint(epoch=1000)
 
     ''' when predictions become circle, lr should be set 10 1e-4 
         eventually want to reduce temp scale to 64->32-> ...
     '''
     # is applied before loss calculation to make residuals large enough for loss calculation to be meaningfull
     # by default it is set to grid.length*grid.width, but it should be multiplied by more than 1
-    model.engine.loss_scale = 2**4
+    model.engine.loss_scale = 2**6
     model.core_only = True
     model.set_lr(1e-4)
     print('OPTIMIZER: \n', model.optimizer)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     util_data.clear_dir(train_dir)
     util_example.train_example(
         model=model, power_data=power_sources,
-        epochs=500, save_dir=train_dir, compress=3
+        epochs=1000, save_dir=train_dir, compress=5
     )
 
     print('\nEVAL TRAIN PERFORMANCE... ')

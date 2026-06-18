@@ -58,15 +58,18 @@ def train_example(model, power_data:list, epochs=100, save_dir=None, compress=No
 
 def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None, save_hist=False):
     if loss_hist is None:
-        loss_hist = pd.DataFrame(trained_model.engine.hist.copy())
+        loss_hist = pd.DataFrame(trained_model.engine.hist)
 
     suffix=''
     if epoch is not None:
         loss_hist = loss_hist.iloc[:epoch]
         suffix=f'{epoch}e'
 
+    if save_dir is not None:
+        loss_hist.to_csv(save_dir / f"loss_history{suffix}.csv")
+
     plot_bc_loss(loss_hist, log_scale=True, compress=compress,
-         suffix=suffix, save_dir=save_dir, save_hist=save_hist
+         suffix=suffix, save_dir=save_dir
     )
     plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
     plot_total_loss(loss_hist, log_scale=False, suffix=suffix, save_dir=save_dir, compress=compress)

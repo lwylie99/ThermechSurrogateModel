@@ -10,7 +10,7 @@ from util_data import DataPair, PMPair
 from util_example import compress_dataframe
 
 
-def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_dir=None, suffix='', save_hist=True):
+def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_dir=None, suffix=''):
     if compress is not None:
         loss_hist = compress_dataframe(loss_hist, compress)
 
@@ -18,12 +18,12 @@ def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_d
     for col in loss_hist.columns:
         if col == 'total' or col == 'epoch' or col == 'core':
             continue
-        ax.plot(loss_hist.index, loss_hist[col].dropna(), label=col, linewidth=0.5, linestyle='-')
+        ax.plot(loss_hist.index, loss_hist[col].fillna(0), label=col, linewidth=0.5, linestyle='-')
 
     ax.set_xlabel("Epoch", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
     ax.set_title("Boundary Condition Loss", fontsize=20)
-    ax.legend()
+    # ax.legend()
     if log_scale:
         ax.set_yscale('log')
     ax.grid(True, alpha=0.3)
@@ -32,8 +32,6 @@ def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_d
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_dir / f"bc_loss_plot{suffix}.png", dpi=150)
-        if save_hist:
-            loss_hist.to_csv(save_dir / "loss_history.csv")
         print(f"Saved to {save_dir}")
 
     #plt.show()

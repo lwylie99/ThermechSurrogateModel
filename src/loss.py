@@ -55,16 +55,24 @@ class LossEngine(Component):
     wts: CompSet = None
     parts: CompSet = None
     epoch_loss: Tensor = None
+    loss_scale: float = None
 
-    def __init__(self, loss_wts:CompSet=None):
+    def __init__(self, loss_wts:CompSet=None, loss_scale=None):
         self.hist = []
-        if self.wts is None:
-            self.wts = PartSet().set(1.0)
+        if loss_scale is None:
+            loss_scale = 1.0
+        if loss_wts is None:
+            loss_wts = PartSet().set(1.0)
+        self.loss_scale = loss_scale
+        self.wts = loss_wts
         self.new_epoch()
 
     def e(self) -> int:
         ''' returns the latest complete epoch '''
         return len(self.hist)
+
+    def wt(self, part):
+        return self.wts[part] * self.loss_scale
 
     def loss_parts(self, clean=True):
         return self.wts.fields(clean)

@@ -5,6 +5,7 @@ import numpy as np
 import util_data
 import util_example
 from components import PartSet
+from loss import LossEngine
 from model_nn import PowerMapPlateModel
 from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
 from src.mediums import Medium, Grid
@@ -24,9 +25,10 @@ def get_exp_model_setup():
     grid = Grid(length=48, width=48)
     print('GRID SETUP: ', grid)
 
+    loss_engine = LossEngine(loss_scale=32)
     check_dir = Path(r'checkpoints').resolve()
     model = PowerMapPlateModel(
-        plate=plate, grid=grid, temp_scale=8,
+        plate=plate, grid=grid, engine=loss_engine,
         checkpoint_dir=check_dir, core_only=True
     ) # train on just core to troubleshoot
     model.default_model(
@@ -66,7 +68,7 @@ if __name__ == "__main__":
         eventually want to reduce temp scale to 64->32-> ...
     '''
     model.set_lr(1e-4)
-    model.temp_scale=8
+    model.engine.loss_scale=8
     print('OPTIMIZER: \n', model.optimizer)
 
     util_data.clear_dir(model.checkpoint_dir)
