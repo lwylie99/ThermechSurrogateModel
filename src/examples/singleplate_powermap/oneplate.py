@@ -4,16 +4,18 @@ import numpy as np
 
 import util_data
 import util_example
-from components import PartSet
+from components import PinnSet
+from conditions import Gaussian
+from conditions_core import GaussianPde
+from conditions_sides import Insulated, Robin
 from loss import LossEngine
-from model_nn import PowerMapPlateModel
-from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
+from model_nn import PowerMapPlateModel, GaussianPlatePINN, TrainData
 from src.mediums import Medium, Grid
 
 ''' DEFINE PLATE & MODEL '''
 def get_exp_model_setup():
     plate = Medium(conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
-    plate.setConditions(PartSet(
+    plate.setConditions(PinnSet(
         top=Insulated(),
         bottom=Insulated(),
         left=Robin(h=1e-5, ambient=25.0),
@@ -25,13 +27,13 @@ def get_exp_model_setup():
     grid = Grid(length=48, width=48)
     print('GRID SETUP: ', grid)
 
-    wts = PartSet().set(4.0)
-    wts.core = 1.0
-    loss_engine = LossEngine(loss_wts=wts)
+    # wts = PinnSet().set(1.0)
+    # wts.core = 10.0
+    loss_engine = LossEngine()
     check_dir = Path(r'checkpoints').resolve()
-    model = PowerMapPlateModel(
+    model = GaussianPlatePINN(
         plate=plate, grid=grid, engine=loss_engine,
-        checkpoint_dir=check_dir, core_only=True
+        checkpoint_dir=check_dir
     ) # train on just core to troubleshoot
     model.default_model(
         num_blocks=7, num_hidden=512,
@@ -64,24 +66,24 @@ if __name__ == "__main__":
     # model.load_model(model_path)
     # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
     # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-    model.load_checkpoint(epoch=500)
+    # model.load_checkpoint(epoch=1000)
 
     ''' when predictions become circle, lr should be set 10 1e-4 
         eventually want to reduce temp scale to 64->32-> ...
     '''
     # is applied before loss calculation to make residuals large enough for loss calculation to be meaningfull
     # by default it is set to grid.length*grid.width, but it should be multiplied by more than 1
-    model.engine.loss_scale = 2**4
-    model.core_only = True
-    model.set_lr(1e-4)
+    model.engine.loss_scale = 1e3
+    model.engine.core_only = True
+    model.engine.paired_freq = 10
+    model.set_lr(1e-3)
     print('OPTIMIZER: \n', model.optimizer)
 
     util_data.clear_dir(model.checkpoint_dir)
     util_data.clear_dir(train_dir)
-    util_example.train_example(
-        model=model, power_data=power_sources,
-        epochs=500, save_dir=train_dir, compress=3
-    )
+
+    train_data = TrainData(pinn=[power_sources], paired=analytical_pairs)
+    model.train_model(train_data=train_data, epochs=100)
 
     print('\nEVAL TRAIN PERFORMANCE... ')
     input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]

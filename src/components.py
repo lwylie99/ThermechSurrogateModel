@@ -53,7 +53,7 @@ class EdgeSet(CompSet):
 
 
 @dataclass
-class PartSet(EdgeSet):
+class PinnSet(EdgeSet):
     core: Any = None
 
 
@@ -71,7 +71,7 @@ class NDComponent(ModularComponent):
     measure: str = None
     length: float | int = None
     width: float | int = None
-    masks = PartSet(
+    masks = PinnSet(
         top=(0, slice(None)),  # y=0, all x   → (1, 20) = 20 pts
         bottom=(-1, slice(None)),  # y=max, all x → 20 pts
         left=(slice(None), 0),  # all y, x=0   → 10 pts

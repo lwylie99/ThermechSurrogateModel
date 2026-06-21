@@ -2,23 +2,22 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import torch
-from torch import Tensor
 
-from components_thermal import PdeCore
-from src.components import NDComponent, PartSet, EdgeSet
+from src.components import NDComponent, PinnSet
+
 
 @dataclass
 class Medium(NDComponent):
     ''' data for a thermal medium '''
     measure: str = ''
     conduction: Any = None
-    bcs: PartSet = None
+    bcs: PinnSet = None
 
-    def setConditions(self, bounds: PartSet):
+    def setConditions(self, bounds: PinnSet):
         self.bcs = bounds
         for part in self.axis.fields():
             # sets the outward directions and axis normal to each side
+            self.bcs[part].k = self.conduction
             self.bcs[part].axis = self.axis[part]
             self.bcs[part].direction = self.out[part]
 
@@ -35,4 +34,3 @@ class Grid(NDComponent):
 
     def ones(self) -> np.ndarray:
         return np.ones(self.shape())
-

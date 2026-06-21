@@ -5,7 +5,7 @@ import torch
 from sphinx.cmd.quickstart import suffix
 
 from components import Component
-from components_thermal import GaussianPde
+from conditions_core import GaussianPde
 from util_data import DataPair, PMPair
 from util_example import compress_dataframe
 
@@ -18,7 +18,8 @@ def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_d
     for col in loss_hist.columns:
         if col == 'total' or col == 'epoch' or col == 'core':
             continue
-        ax.plot(loss_hist.index, loss_hist[col].fillna(0), label=col, linewidth=0.5, linestyle='-')
+        bc = loss_hist['epoch', col].dropna()
+        ax.plot(bc['epoch'], bc[col], label=col, linewidth=0.5, linestyle='-')
 
     ax.set_xlabel("Epoch", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
@@ -188,12 +189,12 @@ def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_
     Plots predicted vs analytical temperature fields side by side.
     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
     """
-    model.model.eval()
+    # model.model.eval()
 
     bc = GaussianPde()
     bc.build_power_map(grid_map, [power_source], model._device)
     power_np = bc.power_map.cpu().detach().numpy().reshape(model.grid.shape())
-    mod_in = model._build_input(bc.power_map)
+    mod_in = model._plate_input(bc.power_map)
     preds = model._model(mod_in)
     preds_np = preds.detach().cpu().numpy().reshape(model.grid.shape())
 

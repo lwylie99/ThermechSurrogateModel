@@ -4,7 +4,7 @@ import numpy as np
 
 import util_data
 import util_example
-from components import PartSet
+from components import PinnSet
 from loss import LossEngine
 from model_nn import PowerMapPlateModel
 from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
@@ -13,7 +13,7 @@ from src.mediums import Medium, Grid
 ''' DEFINE PLATE & MODEL '''
 def get_exp_model_setup():
     plate = Medium(conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
-    plate.setConditions(PartSet(
+    plate.setConditions(PinnSet(
         top=Insulated(),
         bottom=Insulated(),
         left=Robin(h=1e-5, ambient=25.0),
@@ -25,7 +25,7 @@ def get_exp_model_setup():
     grid = Grid(length=48, width=48)
     print('GRID SETUP: ', grid)
 
-    wts = PartSet().set(4.0)
+    wts = PinnSet().set(4.0)
     wts.core = 1.0
     loss_engine = LossEngine(loss_wts=wts)
     check_dir = Path(r'checkpoints').resolve()
@@ -82,10 +82,10 @@ if __name__ == "__main__":
         model=model, power_data=power_sources,
         epochs=1000, save_dir=train_dir, compress=5
     )
+    util_example.plot_example_losshist(model, compress=4, save_dir=train_dir)
 
     print('\nEVAL TRAIN PERFORMANCE... ')
     input_data = [util_data.DataPair(name='CenterGaussianPDE', input=power_sources)]
     util_example.eval_plate_example(model,
         power_data=input_data, save_dir=train_dir #, normal=True #, inced=0,
     )
-    util_example.plot_example_losshist(model, compress=4, save_dir=train_dir)

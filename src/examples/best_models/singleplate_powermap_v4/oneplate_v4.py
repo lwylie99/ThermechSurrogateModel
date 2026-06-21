@@ -4,7 +4,7 @@ import numpy as np
 
 import util_data
 import util_example
-from components import PartSet
+from components import PinnSet
 from model_nn import PowerMapPlateModel
 from src.components_thermal import Insulated, Robin, Gaussian, GaussianPde
 from src.mediums import Medium, Grid
@@ -12,7 +12,7 @@ from src.mediums import Medium, Grid
 ''' DEFINE PLATE & MODEL '''
 def get_exp_model_setup():
     plate = Medium(conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
-    plate.setConditions(PartSet(
+    plate.setConditions(PinnSet(
         top=Insulated(),
         bottom=Insulated(),
         left=Robin(h=1e-5, ambient=25.0),

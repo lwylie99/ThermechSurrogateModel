@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 from torch.autograd import grad
 
-from components import Component, CompSet, PartSet
+from components import Component, CompSet, PinnSet
 
 
 def gradients(y, x, create_graph=True, retain_graph=True):
@@ -41,44 +41,68 @@ def residual_mse(residual) -> Tensor:
 def paired_loss(pred, act) -> Tensor:
     return torch.nn.functional.mse_loss(pred, act)
 
+
 @dataclass
-class LossSet(PartSet):
-    ''' to add loss components not included in partset '''
-    total: Any = None
+class LossSet(CompSet):
+    ''' fields exclusive to loss set '''
+    paired: Any = None
+    epoch: int = None
+
+
+@dataclass
+class PinnLossSet(LossSet, PinnSet):
+    ''' fields of both loss set and PINN set '''
 
     def default_wts(self):
         self.set(1.0)
 
+
 @dataclass
 class LossEngine(Component):
     hist: List[Dict] = None
-    wts: CompSet = None
-    parts: CompSet = None
+    load_epoch: int = 0
+
+    part_loss: LossSet = None
     epoch_loss: Tensor = None
+
+    loss_wts: LossSet = None
     loss_scale: float = None
 
-    def __init__(self, loss_wts:CompSet=None, loss_scale=None):
+    core_only: bool = False  # if you want to train/eval core without BCs
+    paired_freq: int = 0
+
+    def __init__(self, loss_wts: LossSet = None, loss_scale: float = 1.0):
+        ''' paired_freq: paired loss will be applied every x epochs '''
         self.hist = []
-        if loss_scale is None:
-            loss_scale = 1.0
         if loss_wts is None:
-            loss_wts = PartSet().set(1.0)
+            loss_wts = PinnLossSet().set(1.0)
+        self.loss_wts = loss_wts
         self.loss_scale = loss_scale
-        self.wts = loss_wts
         self.new_epoch()
 
     def e(self) -> int:
         ''' returns the latest complete epoch '''
         return len(self.hist)
 
+    def is_checkpoint(self, check_freq) -> bool:
+        return check_freq != 0 and (self.e() - self.load_epoch) % check_freq == 0
+
     def wt(self, part):
-        return self.wts[part] * self.loss_scale
+        return torch.tensor(self.loss_wts[part], dtype=torch.float32).requires_grad_(True)
 
     def loss_parts(self, clean=True):
-        return self.wts.fields(clean)
+        if self.core_only:
+            parts = ['core', 'paired']
+        else:
+            parts = self.loss_wts.fields(clean)
+
+        if not self.is_checkpoint(self.paired_freq):
+            parts.remove('paired')
+
+        return parts
 
     def best_loss(self):
-        func = min #if mode == 'min' else max
+        func = min  # if mode == 'min' else max
         return func(self.hist, key=lambda x: x['total'])
 
     def load_hist(self, load_dir: Path, epoch: int = None):
@@ -88,19 +112,23 @@ class LossEngine(Component):
         if epoch is not None:
             pre_hist = pre_hist.iloc[:epoch]
         self.hist = pre_hist.to_dict('records')
+        self.load_epoch = self.e()
         return self
 
     def new_epoch(self):
-        loss_type = type(self.wts)
-        self.parts = loss_type()
+        loss_type = type(self.loss_wts)
+        self.part_loss = loss_type()
         return torch.tensor(0.0, dtype=torch.float32)
 
-    def add_part(self, part, loss: Tensor):
-        self.parts[part] = loss.item()
+    def add_loss(self, part, loss: Tensor):
+        if self.part_loss[part] is not None:
+            self.part_loss[part] += loss.item()
+        else:
+            self.part_loss[part] = loss.item()
         return loss
 
     def save_epoch(self, loss: float, clean=True):
-        loss_dict = self.parts.asDict(clean)
+        loss_dict = self.part_loss.asDict(clean)
         loss_dict['total'] = loss
         self.hist.append(loss_dict)
 

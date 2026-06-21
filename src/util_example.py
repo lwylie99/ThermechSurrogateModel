@@ -27,14 +27,14 @@ def eval_plate_example(model, power_data: list, save_dir=None, inced=None, norma
             print(f'solution shape: {p.solution.reshape(model.grid.shape()).shape}')
             truth_np = util_tensor.to_numpy([p.solution],model.grid.shape())[0]
             norm_range = (np.min(truth_np), np.max(truth_np)) if normal else None
-            total_loss, temps, power_map, residuals = model.eval_plate(
+            total_loss, temps, power_map, residuals = model.eval_model(
                 power_map=p.input.to(model._device), plot=True, normal=norm_range
             )
             plot_analytical_comparison(temps, truth_np, xs, ys,
                title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
             )
         else:
-            total_loss, temps, power_map, residuals = model.eval_plate(
+            total_loss, temps, power_map, residuals = model.eval_model(
                 power=p.input, power_map=None, plot=True
             )
 
@@ -50,11 +50,6 @@ def eval_plate_example(model, power_data: list, save_dir=None, inced=None, norma
 
         plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_res_{i}')
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
-
-def train_example(model, power_data:list, epochs=100, save_dir=None, compress=None):
-    print(f'\nBEGIN TRAINING ({epochs} Epochs)\n')
-    loss_hist = model.train_model(power_data=power_data, epochs=epochs)
-    plot_example_losshist(trained_model=model, loss_hist=loss_hist, save_hist=True)
 
 def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None, save_hist=False):
     if loss_hist is None:

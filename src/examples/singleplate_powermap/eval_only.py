@@ -10,7 +10,7 @@ power_sources, analytical_pairs = get_exp_data()
 train_dir = get_exp_results_dir()
 
 ''' LOAD MODEL '''
-model.load_checkpoint(epoch=1000)
+model.load_checkpoint(epoch=1)
 print('OPTIMIZER: \n', model.optimizer)
 
 ''' EVAL MODEL '''
