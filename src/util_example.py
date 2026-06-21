@@ -17,26 +17,31 @@ from util_plots import *
 #         )
 
 
-def eval_plate_example(model, power_data: list, save_dir=None, inced=None, normal=False):
-    for i in range(len(power_data)):
-        title = 'Gauss Center Power'
-        p = power_data[i]
+def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, inced=None, normal=False):
+    xs, ys, grid_map = model._build_grid_map(plot=True)
 
-        xs, ys, grid_map = model._build_grid_map(plot=True)
-        if isinstance(p, PMPair) and p.solution is not None:
-            print(f'solution shape: {p.solution.reshape(model.grid.shape()).shape}')
-            truth_np = util_tensor.to_numpy([p.solution],model.grid.shape())[0]
-            norm_range = (np.min(truth_np), np.max(truth_np)) if normal else None
-            total_loss, temps, power_map, residuals = model.eval_model(
-                power_map=p.input.to(model._device), plot=True, normal=norm_range
-            )
-            plot_analytical_comparison(temps, truth_np, xs, ys,
-               title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
-            )
-        else:
-            total_loss, temps, power_map, residuals = model.eval_model(
-                power=p.input, power_map=None, plot=True
-            )
+    print(f"shapes --> plate: {model.plate.shape()}, grid: {model.grid.shape()}")
+    print(f"       --> grid_map: {grid_map.shape}, xs: {xs.shape}, ys: {ys.shape}")
+
+    for i in range(len(power_data.paired)):
+        p = power_data.next('paired', pop=False)
+        truth_np = util_tensor.to_numpy([p.solution], model.grid.shape())[0]
+        norm_range = (np.min(truth_np), np.max(truth_np)) if normal else None
+        total_loss, temps, power_map = model.eval_model(power_data=power_data, part='paired', normal=norm_range)
+
+        print(f"       --> p.input: {p.input.shape}, p.solution: {p.solution.shape}")
+        print(f"       --> truth_np: {truth_np.shape}, power: {power_map.shape}, temps: {temps.shape}")
+
+        if inced is not None:
+            temps = temps + inced
+
+        plot_analytical_comparison(temps, truth_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_evalpair{i}'
+        )
+
+    for i in range(len(power_data.pinn)):
+        p = power_data.next('pinn', pop=False)
+        total_loss, temps, power_map, residuals = model.eval_model(power_data=power_data)
 
         if inced is not None:
             temps = temps + inced
@@ -48,26 +53,30 @@ def eval_plate_example(model, power_data: list, save_dir=None, inced=None, norma
             title=title, save_dir=save_dir, save_suffix=f'_p{i}'
         )
 
-        plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_res_{i}')
+        plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_p{i}')
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
+
 
 def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None, save_hist=False):
     if loss_hist is None:
         loss_hist = pd.DataFrame(trained_model.engine.hist)
 
-    suffix=''
+    if compress is None:
+        compress = max(3, len(loss_hist) // 200)
+
+    suffix = ''
     if epoch is not None:
         loss_hist = loss_hist.iloc[:epoch]
-        suffix=f'{epoch}e'
+        suffix = f'{epoch}e'
 
-    if save_dir is not None:
-        loss_hist.to_csv(save_dir / f"loss_history{suffix}.csv")
+    # if save_dir is not None:
+    #     loss_hist.to_csv(save_dir / f"loss_history{suffix}.csv")
 
     plot_bc_loss(loss_hist, log_scale=True, compress=compress,
-         suffix=suffix, save_dir=save_dir
+        suffix=suffix, save_dir=save_dir
     )
     plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
-    plot_total_loss(loss_hist, log_scale=False, suffix=suffix, save_dir=save_dir, compress=compress)
+    plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
 
 
 def latest_model_path(check_dir: Path) -> str:

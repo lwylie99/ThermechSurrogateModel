@@ -71,13 +71,14 @@ class LossEngine(Component):
     core_only: bool = False  # if you want to train/eval core without BCs
     paired_freq: int = 0
 
-    def __init__(self, loss_wts: LossSet = None, loss_scale: float = 1.0):
+    def __init__(self, loss_wts:LossSet=None, loss_scale: float=1.0, paired_freq=0):
         ''' paired_freq: paired loss will be applied every x epochs '''
         self.hist = []
         if loss_wts is None:
             loss_wts = PinnLossSet().set(1.0)
         self.loss_wts = loss_wts
         self.loss_scale = loss_scale
+        self.paired_freq = paired_freq
         self.new_epoch()
 
     def e(self) -> int:
@@ -85,10 +86,11 @@ class LossEngine(Component):
         return len(self.hist)
 
     def is_checkpoint(self, check_freq) -> bool:
-        return check_freq != 0 and (self.e() - self.load_epoch) % check_freq == 0
+        return check_freq != 0 and (self.e()-1 == self.load_epoch
+               or (self.e()-self.load_epoch) % check_freq == 0)
 
     def wt(self, part):
-        return torch.tensor(self.loss_wts[part], dtype=torch.float32).requires_grad_(True)
+        return torch.tensor(self.loss_wts[part], dtype=torch.float32)#.requires_grad_(True)
 
     def loss_parts(self, clean=True):
         if self.core_only:
@@ -118,7 +120,7 @@ class LossEngine(Component):
     def new_epoch(self):
         loss_type = type(self.loss_wts)
         self.part_loss = loss_type()
-        return torch.tensor(0.0, dtype=torch.float32)
+        return torch.tensor(0.0, dtype=torch.float32).requires_grad_(True)
 
     def add_loss(self, part, loss: Tensor):
         if self.part_loss[part] is not None:
@@ -127,9 +129,10 @@ class LossEngine(Component):
             self.part_loss[part] = loss.item()
         return loss
 
-    def save_epoch(self, loss: float, clean=True):
+    def save_epoch(self, loss: Tensor, clean=True):
         loss_dict = self.part_loss.asDict(clean)
-        loss_dict['total'] = loss
+        loss_dict['epoch'] = self.e()
+        loss_dict['total'] = loss.item()
         self.hist.append(loss_dict)
 
     def save_hist(self, save_dir: Path):

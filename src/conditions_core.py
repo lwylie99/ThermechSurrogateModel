@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 from typing import List
 
@@ -11,13 +12,13 @@ from loss import laplacian_jacobian, residual_mse, paired_loss
 
 
 @dataclass
-class PowerMapCore(LossComponent):
+class PowerMapCore(BoundaryCondition):
     ''' for data based input/solution loss '''
     comp_type: str = 'PowerMapCore'
     power_map: Tensor = None
 
     def loss(self, u, coords) -> Tensor:
-        ''' u: predicted temperatures, k: material convection,
+        ''' u: predicted temperatures, k: material convection (defined in BC parent),
         coords: map of plate locations to sampling grid
         '''
         return torch.zeros(0)
@@ -30,11 +31,12 @@ class PairedData(PowerMapCore):
     solution: Tensor = None
 
     def loss(self, u, coords) -> Tensor:
+        # print(f"in loss: shapes -> u:{u.shape}, coords:{self.solution.shape}")
         return paired_loss(u, self.solution)
 
 
 @dataclass
-class PdeCore(BoundaryCondition, PowerMapCore):
+class PdeCore(PowerMapCore):
     ''' for PDE based loss conditions applied to whole map '''
     comp_type: str = 'PdeCore'
 
@@ -71,6 +73,7 @@ class GaussianPde(PdeCore):
         ''' Enforces: k * ∇²u + Q(x,y) = 0
         Returns the raw, un-reduced residual vector for plotting/troubleshooting.
         '''
+        # print(f"in residual shapes -> u:{u.shape}, coords:{coords.shape}, k:{self.k}")
         jac, u_laplace = laplacian_jacobian(u, coords, self.k)
         residual = u_laplace + self.power_map.squeeze(-1)
         return residual

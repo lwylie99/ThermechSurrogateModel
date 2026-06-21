@@ -12,6 +12,9 @@ from src.components import Component, ModularComponent
 class LossComponent(Component):
     comp_type: str = 'LossComponent'
 
+    def residual(self, u, coords):
+        return torch.zeros(0)
+
     def loss(self, u, coords) -> Tensor:
         ''' physics loss function '''
         return torch.zeros(0)
@@ -30,7 +33,7 @@ class PowerSource(ModularComponent):
     internal: bool = True
 
     def title(self):
-        return f'{self.conv_type} at ({self.x}, {self.y})'
+        return f'{self.comp_type} at ({self.x}, {self.y})'
 
 
 # Need to provide power [W] and convert to amplitude [W/m^2]

@@ -11,20 +11,21 @@ from util_example import compress_dataframe
 
 
 def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_dir=None, suffix=''):
+    print(loss_hist)
     if compress is not None:
         loss_hist = compress_dataframe(loss_hist, compress)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     for col in loss_hist.columns:
-        if col == 'total' or col == 'epoch' or col == 'core':
+        if col == 'total' or col == 'epoch':
             continue
-        bc = loss_hist['epoch', col].dropna()
+        bc = loss_hist[['epoch', col]].dropna()
         ax.plot(bc['epoch'], bc[col], label=col, linewidth=0.5, linestyle='-')
 
     ax.set_xlabel("Epoch", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
     ax.set_title("Boundary Condition Loss", fontsize=20)
-    # ax.legend()
+    ax.legend()
     if log_scale:
         ax.set_yscale('log')
     ax.grid(True, alpha=0.3)
@@ -32,7 +33,7 @@ def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_d
 
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_dir / f"bc_loss_plot{suffix}.png", dpi=150)
+        fig.savefig(save_dir / f"loss_bc_plot{suffix}.png", dpi=150)
         print(f"Saved to {save_dir}")
 
     #plt.show()
@@ -62,7 +63,7 @@ def plot_total_loss(loss_hist: pd.DataFrame, log_scale=False, save_dir=None, com
 
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_dir / f"total_loss_plot{suffix}.png", dpi=150)
+        fig.savefig(save_dir / f"loss_total_plot{suffix}.png", dpi=150)
         print(f"Saved to {save_dir}")
 
     #plt.show()
@@ -112,7 +113,7 @@ def plot_analytical_comparison(preds_np, truth_np, xs, ys, title='', save_dir=No
     plt.tight_layout()
 
     if save_dir:
-        path = save_dir / f'analytical_comparison{save_suffix}.png'
+        path = save_dir / f'compare_analytical{save_suffix}.png'
         plt.savefig(path, dpi=150)
         print(f'Saved comparison to {path}')
 
@@ -176,96 +177,9 @@ def plot_power_map_predictions(temps, power_np, xs, ys, title, save_dir=None, sa
     plt.tight_layout()
 
     if save_dir:
-        path = save_dir / f'temperature_comparison{save_suffix}.png'
+        path = save_dir / f'compare_temps{save_suffix}.png'
         plt.savefig(path, dpi=150)
         print(f'Saved to {path}')
-
-    #plt.show()
-
-# TODO: MAGGIE - this one is just for guassian solutions,
-#  its gross tbh but it lets me compare the temp range mostly
-def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_dir=None, suffix=''):
-    """
-    Plots predicted vs analytical temperature fields side by side.
-    Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
-    """
-    # model.model.eval()
-
-    bc = GaussianPde()
-    bc.build_power_map(grid_map, [power_source], model._device)
-    power_np = bc.power_map.cpu().detach().numpy().reshape(model.grid.shape())
-    mod_in = model._plate_input(bc.power_map)
-    preds = model._model(mod_in)
-    preds_np = preds.detach().cpu().numpy().reshape(model.grid.shape())
-
-    xs = np.linspace(0, plate.length, grid.length)
-    ys = np.linspace(0, plate.width, grid.width)
-
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
-    im0 = axes[0].contourf(xs, ys, preds_np, levels=50, cmap='hot')
-    axes[0].set_title('Predicted Temperature', fontsize=18)
-    axes[0].set_xlabel('x')
-    axes[0].set_ylabel('y')
-    fig.colorbar(im0, ax=axes[0], label='Temp')
-
-    im1 = axes[1].contourf(xs, ys, power_np, levels=50, cmap='plasma')
-    axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
-    axes[1].set_title(f'Power Input  (A={power_source.amplitude}, σ={power_source.spread})', fontsize=18)
-    axes[1].set_xlabel('x')
-    axes[1].set_ylabel('y')
-    axes[1].legend()
-    fig.colorbar(im1, ax=axes[1], label='Power (W)')
-
-    # Approximate analytical temperature: convolve Gaussian source with 2D free-space
-    # Green's function G(r) = -1/(2πk) * ln(r). Discretized as a sum over grid points.
-    # This ignores boundary conditions — useful as a sanity check on the field shape.
-    xx, yy = np.meshgrid(xs, ys)
-    x0, y0 = power_source.x, power_source.y
-    A, sigma = power_source.amplitude, power_source.spread
-    k = plate.conduction
-
-    # Q(x,y) at every grid point
-    Q = A * np.exp(-((xx - x0) ** 2 + (yy - y0) ** 2) / (2 * sigma ** 2))
-
-    # Convolve Q with Green's function: T(x,y) = sum_j Q(xj,yj) * G(|(x,y)-(xj,yj)|) * dA
-    dx = plate.length / (grid.length - 1)
-    dy = plate.width / (grid.width - 1)
-    dA = dx * dy
-
-    coords_x = xx.ravel()
-    coords_y = yy.ravel()
-    Q_flat = Q.ravel()
-
-    T_flat = np.zeros_like(coords_x)
-    eps = 1e-6  # avoid log(0) at source point
-    rx = coords_x[:, None] - coords_x[None, :]  # (N, N)
-    ry = coords_y[:, None] - coords_y[None, :]
-    r = np.sqrt(rx ** 2 + ry ** 2)
-    r = np.maximum(r, eps)
-    G = -1.0 / (2 * np.pi * k) * np.log(r)  # (N, N)
-    T_flat = (G * Q_flat[None, :] * dA).sum(axis=1)  # (N,)
-
-    T_approx = T_flat.reshape(xx.shape)
-
-    im2 = axes[2].contourf(xs, ys, T_approx, levels=50, cmap='hot')
-    axes[2].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
-    axes[2].set_title('Approx. Analytical Temp\n(free-space Green\'s fn, no BCs)')
-    axes[2].set_xlabel('x')
-    axes[2].set_ylabel('y')
-    axes[2].legend()
-    fig.colorbar(im2, ax=axes[2], label='Temp')
-
-    plt.suptitle(f'Gaussian source at ({power_source.x}, {power_source.y}), '
-                 f'A={power_source.amplitude}, σ={power_source.spread}')
-    plt.tight_layout()
-
-    if save_dir:
-        path = save_dir / f'temperature_comparison_{suffix}.png'
-        plt.savefig(path, dpi=150)
-        print(f'Saved to {path}')
-
-    #plt.show()
 
 def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffix=''):
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -297,4 +211,89 @@ def plot_pde_residuals(residuals_np, xs, ys, title='', save_dir=None, save_suffi
         plt.savefig(path, dpi=150)
         print(f'Saved signed residual map to {path}')
 
-    #plt.show()
+
+
+# TODO: MAGGIE - this one is just for guassian solutions,
+#  its gross tbh but it lets me compare the temp range mostly
+# def plot_gauss_approx_solution(model, plate, grid, grid_map, power_source, save_dir=None, suffix=''):
+#     """
+#     Plots predicted vs analytical temperature fields side by side.
+#     Analytical solution is approximate: steady-state with Gaussian source + Robin BCs.
+#     """
+#     # model.model.eval()
+#
+#     bc = GaussianPde()
+#     bc.build_power_map(grid_map, power_source, model._device)
+#     power_np = bc.power_map.cpu().detach().numpy().reshape(model.grid.shape())
+#     mod_in = model._plate_input(bc.power_map)
+#     preds = model._model(mod_in)
+#     preds_np = preds.detach().cpu().numpy().reshape(model.grid.shape())
+#
+#     xs = np.linspace(0, plate.length, grid.length)
+#     ys = np.linspace(0, plate.width, grid.width)
+#
+#     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+#
+#     im0 = axes[0].contourf(xs, ys, preds_np, levels=50, cmap='hot')
+#     axes[0].set_title('Predicted Temperature', fontsize=18)
+#     axes[0].set_xlabel('x')
+#     axes[0].set_ylabel('y')
+#     fig.colorbar(im0, ax=axes[0], label='Temp')
+#
+#     im1 = axes[1].contourf(xs, ys, power_np, levels=50, cmap='plasma')
+#     axes[1].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
+#     axes[1].set_title(f'Power Input  (A={power_source.amplitude}, σ={power_source.spread})', fontsize=18)
+#     axes[1].set_xlabel('x')
+#     axes[1].set_ylabel('y')
+#     axes[1].legend()
+#     fig.colorbar(im1, ax=axes[1], label='Power (W)')
+#
+#     # Approximate analytical temperature: convolve Gaussian source with 2D free-space
+#     # Green's function G(r) = -1/(2πk) * ln(r). Discretized as a sum over grid points.
+#     # This ignores boundary conditions — useful as a sanity check on the field shape.
+#     xx, yy = np.meshgrid(xs, ys)
+#     x0, y0 = power_source.x, power_source.y
+#     A, sigma = power_source.amplitude, power_source.spread
+#     k = plate.conduction
+#
+#     # Q(x,y) at every grid point
+#     Q = A * np.exp(-((xx - x0) ** 2 + (yy - y0) ** 2) / (2 * sigma ** 2))
+#
+#     # Convolve Q with Green's function: T(x,y) = sum_j Q(xj,yj) * G(|(x,y)-(xj,yj)|) * dA
+#     dx = plate.length / (grid.length - 1)
+#     dy = plate.width / (grid.width - 1)
+#     dA = dx * dy
+#
+#     coords_x = xx.ravel()
+#     coords_y = yy.ravel()
+#     Q_flat = Q.ravel()
+#
+#     T_flat = np.zeros_like(coords_x)
+#     eps = 1e-6  # avoid log(0) at source point
+#     rx = coords_x[:, None] - coords_x[None, :]  # (N, N)
+#     ry = coords_y[:, None] - coords_y[None, :]
+#     r = np.sqrt(rx ** 2 + ry ** 2)
+#     r = np.maximum(r, eps)
+#     G = -1.0 / (2 * np.pi * k) * np.log(r)  # (N, N)
+#     T_flat = (G * Q_flat[None, :] * dA).sum(axis=1)  # (N,)
+#
+#     T_approx = T_flat.reshape(xx.shape)
+#
+#     im2 = axes[2].contourf(xs, ys, T_approx, levels=50, cmap='hot')
+#     axes[2].scatter(power_source.x, power_source.y, c='red', marker='x', s=100, label='Source center')
+#     axes[2].set_title('Approx. Analytical Temp\n(free-space Green\'s fn, no BCs)')
+#     axes[2].set_xlabel('x')
+#     axes[2].set_ylabel('y')
+#     axes[2].legend()
+#     fig.colorbar(im2, ax=axes[2], label='Temp')
+#
+#     plt.suptitle(f'Gaussian source at ({power_source.x}, {power_source.y}), '
+#                  f'A={power_source.amplitude}, σ={power_source.spread}')
+#     plt.tight_layout()
+#
+#     if save_dir:
+#         path = save_dir / f'compare_temps_{suffix}.png'
+#         plt.savefig(path, dpi=150)
+#         print(f'Saved to {path}')
+#
+#     #plt.show()

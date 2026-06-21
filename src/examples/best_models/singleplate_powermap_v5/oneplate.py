@@ -12,23 +12,6 @@ from loss import LossEngine
 from model_nn import PowerMapPlateModel, PowerMapPlateModel
 from src.mediums import Medium, Grid
 
-def get_exp_data() -> util_data.ModelData:
-    fixed_spread, fixed_power = 3.0, 0.8
-    fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
-    power_sources = [
-        Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
-    ]
-
-    data_path = Path(r'../../ground_truth').resolve()
-    analytical_pairs = util_data.load_pwrmp_data(data_path)
-    train_data = util_data.ModelData(pinn=[power_sources], paired=analytical_pairs)
-    return train_data
-
-def get_exp_results_dir():
-    return Path(r'results').resolve()
-
-
-
 ''' DEFINE PLATE & MODEL '''
 def get_exp_model_setup():
     plate = Medium(measure="mm", conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
@@ -46,7 +29,7 @@ def get_exp_model_setup():
 
     # wts = PinnSet().set(1.0)
     # wts.core = 10.0
-    loss_engine = LossEngine(paired_freq=10)
+    loss_engine = LossEngine()
     check_dir = Path(r'checkpoints').resolve()
     model = PowerMapPlateModel(
         plate=plate, grid=grid, engine=loss_engine,
@@ -56,12 +39,29 @@ def get_exp_model_setup():
         num_blocks=7, num_hidden=512,
         lr=1e-3, wt_decay=1e-4, device='cuda'
     )
+    model.engine.loss_scale = 1e2
+    model.engine.core_only = True
+    model.set_lr(1e-3)
     print('PINN MODEL SETUP: \n', model.model)
     return model
 
+def get_exp_data():
+    fixed_spread, fixed_power = 3.0, 0.8
+    fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
+    power_sources = [
+        Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
+    ]
+
+    data_path = Path(r'../../ground_truth').resolve()
+    analytical_pairs = util_data.load_pwrmp_data(data_path)
+    return power_sources, analytical_pairs
+
+def get_exp_results_dir():
+    return Path(r'results').resolve()
+
 if __name__ == "__main__":
     model = get_exp_model_setup()
-    train_data = get_exp_data()
+    power_sources, analytical_pairs = get_exp_data()
     train_dir = get_exp_results_dir()
 
     ''' TRAIN MODEL '''
@@ -69,20 +69,24 @@ if __name__ == "__main__":
     # model.load_model(model_path)
     # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
     # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-    model.load_checkpoint(epoch=200)
+    # model.load_checkpoint(epoch=1000)
 
-    model.engine.loss_scale = model.grid_map.shape[0]
+    ''' when predictions become circle, lr should be set 10 1e-4 
+        eventually want to reduce temp scale to 64->32-> ...
+    '''
+    # is applied before loss calculation to make residuals large enough for loss calculation to be meaningfull
+    # by default it is set to grid.length*grid.width, but it should be multiplied by more than 1
+    model.engine.loss_scale = 1e2
+    model.engine.paired_freq = 0
     model.engine.core_only = True
-    model.engine.paired_freq = 1
-    model.engine.loss_wts.set(1e7)
-    model.engine.loss_wts['paired'] = 1e-7
-    model.set_lr(1e-4)
-    print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
+    model.set_lr(1e-3)
     print('OPTIMIZER: \n', model.optimizer)
 
     util_data.clear_dir(model.checkpoint_dir)
     util_data.clear_dir(train_dir)
-    loss_hist = model.train_model(train_data=train_data, epochs=300)
+
+    train_data = util_data.ModelData(pinn=[power_sources], paired=analytical_pairs)
+    loss_hist = model.train_model(train_data=train_data, epochs=500)
 
     print('\nEVAL TRAIN PERFORMANCE... ')
     util_example.eval_plate_example(model,power_data=train_data, save_dir=train_dir)
