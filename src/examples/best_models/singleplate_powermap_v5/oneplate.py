@@ -49,7 +49,7 @@ def get_exp_data():
     fixed_spread, fixed_power = 3.0, 0.8
     fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
     power_sources = [
-        Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
+        Gaussian(x=20.0, y=20.0, spread=fixed_spread, amp=fixed_amp),
     ]
 
     data_path = Path(r'../../ground_truth').resolve()

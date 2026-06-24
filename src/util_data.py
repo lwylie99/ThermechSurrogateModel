@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from components import CompSet
+from components import CompSet, ExpComponent
+from conditions import PowerSource
 
 root = Path(__file__).resolve().parents[1]
 sol_path = root / "ground_truth"
@@ -55,11 +56,17 @@ def load_pwrmp_data(load_dir=sol_path) -> list[PMPair]:
 
     return pairs
 
+@dataclass
+class PowerSourceSet(CompSet):
+    pinn: list[PowerSource] = field(default_factory=list)
+    paired: PMPair = None
+
 
 @dataclass
-class ModelData(CompSet):
+class ModelData(ExpComponent):
     pinn: list = field(default_factory=list)
     paired: list[PMPair] = field(default_factory=list)
+    ordered: bool = True
 
     pinn_index: list = field(default_factory=list)
     paired_index: list = field(default_factory=list)
@@ -73,16 +80,21 @@ class ModelData(CompSet):
 
         return dlist[index.pop()]
 
-    def next_pinn(self, pop=True):
+    def _next_pinn(self, pop=True):
         return self._next(self.pinn, self.pinn_index, pop)
 
-    def next_pair(self, pop=True):
+    def _next_pair(self, pop=True):
         return self._next(self.paired, self.paired_index, pop)
 
-    def next(self, loss_type, pop=True):
-        if loss_type == 'paired':
-            return self.next_pair(pop)
-        return self.next_pinn(pop)
+    def next(self, loss_type=None, pop=True):
+        if self.ordered:
+            return PowerSourceSet(
+                self._next(self.pinn, self.pinn_index, pop=False),
+                self._next(self.paired, self.pinn_index, pop)
+            )
+        if loss_type is not None and loss_type == 'paired':
+            return self._next_pair(pop)
+        return self._next_pinn(pop)
 
 
 def clear_dir(dir_path):

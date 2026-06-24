@@ -16,7 +16,8 @@ def get_exp_data() -> util_data.ModelData:
     fixed_spread, fixed_power = 3.0, 0.8
     fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
     power_sources = [
-        Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
+        Gaussian(x=20.0, y=20.0, spread=fixed_spread, amp=fixed_amp),
+        # Gaussian(x=30.0, y=10.0, spread=fixed_spread, amplitude=fixed_amp),
     ]
 
     data_path = Path(r'../../ground_truth').resolve()
@@ -31,15 +32,15 @@ def get_exp_results_dir():
 
 ''' DEFINE PLATE & MODEL '''
 def get_exp_model_setup():
-    plate = Medium(measure="mm", conduction=3e-4, length=40.0, width=40.0) # Update conduction to W/(mm K)
+    plate = Medium(conduction=3e-4, ambient=25.0,
+        measure="mm", length=40.0, width=40.0
+    ) # Update conduction to W/(mm K)
     plate.setConditions(PinnSet(
-        top=Insulated(),
-        bottom=Insulated(),
-        left=Robin(h=1e-5, ambient=25.0),
-        right=Robin(h=1e-5, ambient=25.0),
+        top=Insulated(), bottom=Insulated(),
+        left=Robin(h=1e-5), right=Robin(h=1e-5),
         core=GaussianPde()
     ))
-    print('PLATE SETUP: ', plate.asJson())
+    print('PLATE SETUP: ', plate.asJson(clean=False))
 
     grid = Grid(length=48, width=48)
     print('GRID SETUP: ', grid)
@@ -69,21 +70,39 @@ if __name__ == "__main__":
     # model.load_model(model_path)
     # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
     # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-    model.load_checkpoint(epoch=200)
+    model.load_checkpoint(epoch=5000)
 
-    model.engine.loss_scale = model.grid_map.shape[0]
     model.engine.core_only = True
-    model.engine.paired_freq = 1
-    model.engine.loss_wts.set(1e7)
-    model.engine.loss_wts['paired'] = 1e-7
-    model.set_lr(1e-4)
-    print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
-    print('OPTIMIZER: \n', model.optimizer)
+    model.engine.paired_freq = 0 # for every 5 epochs, paired is included once
+    model.engine.loss_wts['paired'] = 1e-3
 
-    util_data.clear_dir(model.checkpoint_dir)
+    if model.engine.e() == 1 or model.engine.load_epoch == 0:
+        util_data.clear_dir(model.checkpoint_dir)
     util_data.clear_dir(train_dir)
-    loss_hist = model.train_model(train_data=train_data, epochs=300)
+
+    ''' start with brief intro to ground truth '''
+    model.engine.core_only = True
+    model.engine.paired_freq = 10
+    model.engine.loss_wts.set_all(model.grid_map.shape[0]**1.7)
+    model.engine.loss_wts['paired'] = 1e-4
+    model.set_lr(1e-5)
+    # print('OPTIMIZER: \n', model.optimizer)
+    # print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
+    # loss_hist = model.train_model(train_data=train_data, epochs=5)
+
+    ''' focus on PDE loss only '''
+    model.engine.paired_freq = 5 # for every 5 epochs, paired is included once
+    print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
+    loss_hist = model.train_model(train_data=train_data, epochs=15000)
+
+    ''' PDE with sparse ground truth reinforcement '''
+    # model.engine.paired_freq = 5 # for every 100 epochs, paired is included once
+    # model.engine.loss_wts['paired'] = 5e-4
+    # print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
+    # loss_hist = model.train_model(train_data=train_data, epochs=50)
+
+
+    util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
 
     print('\nEVAL TRAIN PERFORMANCE... ')
-    util_example.eval_plate_example(model,power_data=train_data, save_dir=train_dir)
-    util_example.plot_example_losshist(model, loss_hist=loss_hist, save_dir=train_dir)
+    util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)

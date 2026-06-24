@@ -3,13 +3,14 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from src.components import Component, ModularComponent
+from mediums import ModularComponent
+from components import ExpComponent
 
 ''' building blocks of a thermal plate set up --> boundary condition parent and power sources '''
 
 
 @dataclass
-class LossComponent(Component):
+class LossComponent(ExpComponent):
     comp_type: str = 'LossComponent'
 
     def residual(self, u, coords):
@@ -43,8 +44,8 @@ class Gaussian(PowerSource):
     ''' data for a guassian power source '''
     comp_type: str = 'Gaussian'
     internal: bool = True
-    amplitude: float = None
+    amp: float = None
     spread: float = None
 
     def title(self):
-        return f'{self.conv_type} at ({self.x}, {self.y}), A={self.amplitude}, σ={self.spread}'
+        return f'{PowerSource.title(self)}, A={self.amp}, σ={self.spread}'

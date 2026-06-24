@@ -1,26 +1,29 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import torch
-from sphinx.cmd.quickstart import suffix
 
-from components import Component
-from conditions_core import GaussianPde
-from util_data import DataPair, PMPair
+import util_tensor
 from util_example import compress_dataframe
 
 
-def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_dir=None, suffix=''):
+def plot_bc_loss(trained_model, loss_hist: pd.DataFrame, log_scale=False, compress=None, save_dir=None, all_parts=False, suffix=''):
     print(loss_hist)
     if compress is not None:
         loss_hist = compress_dataframe(loss_hist, compress)
 
+    parts = trained_model.engine.loss_parts(as_dict=False)
+    parts['paired'] = True
+    if all_parts:
+        parts = parts.set_all(True)
+    parts = parts.asDict()
+
     fig, ax = plt.subplots(figsize=(10, 5))
     for col in loss_hist.columns:
-        if col == 'total' or col == 'epoch':
+        if col == 'total' or col == 'epoch' or not parts[col]:
             continue
         bc = loss_hist[['epoch', col]].dropna()
-        ax.plot(bc['epoch'], bc[col], label=col, linewidth=0.5, linestyle='-')
+        bc[col] = util_tensor.normalize_np(bc[col], 0, 1)
+        ax.plot(bc['epoch'], bc[col], label=col, linewidth=1.0, linestyle='-')
 
     ax.set_xlabel("Epoch", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
@@ -39,18 +42,25 @@ def plot_bc_loss(loss_hist: pd.DataFrame, log_scale=False, compress=None, save_d
     #plt.show()
 
 
-def plot_total_loss(loss_hist: pd.DataFrame, log_scale=False, save_dir=None, compress=None, suffix=''):
+def plot_total_loss(loss_hist: pd.DataFrame, compress=None, log_scale=False, save_dir=None, suffix=''):
+    plot_col_loss(loss_hist, 'total', compress=compress, log_scale=log_scale, save_dir=save_dir, suffix=suffix)
+
+def plot_col_loss(loss_hist: pd.DataFrame, col, compress=None, log_scale=False, save_dir=None, suffix=''):
     fig, ax = plt.subplots(figsize=(10, 5))
     if compress is not None:
-        ax.plot(loss_hist.index, loss_hist['total'], label='raw_totals', linewidth=0.5, linestyle='-', alpha=0.6)
+        ax.plot(loss_hist.index, loss_hist[col], label='raw',
+            color='steelblue', linewidth=1.0, linestyle='-', alpha=0.5
+        )
         chist = compress_dataframe(loss_hist, compress)
-        ax.plot(chist['epoch'], chist['total'], label='smoothed', linewidth=1.0, linestyle='-', color='red')
+        ax.plot(chist['epoch'], chist[col], label='smoothed',
+            color='firebrick', linewidth=1.5, linestyle='-'
+        )
     else:
-        ax.plot(loss_hist.index, loss_hist['total'], label='total', linewidth=1.0, linestyle='-')
+        ax.plot(loss_hist.index, loss_hist[col], label=col, linewidth=2.0, linestyle='-')
 
     ax.set_xlabel("Epoch", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
-    ax.set_title("Total Loss", fontsize=20)
+    ax.set_title(f"{col.title()} Loss", fontsize=20)
     ax.tick_params(axis='both', which='major', labelsize=12)
     ax.legend()
 
@@ -63,7 +73,7 @@ def plot_total_loss(loss_hist: pd.DataFrame, log_scale=False, save_dir=None, com
 
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_dir / f"loss_total_plot{suffix}.png", dpi=150)
+        fig.savefig(save_dir / f"loss_{col}_plot{suffix}.png", dpi=150)
         print(f"Saved to {save_dir}")
 
     #plt.show()

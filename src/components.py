@@ -4,7 +4,10 @@ from typing import Any
 
 
 @dataclass
-class Component:
+class ExpComponent:
+    def title(self):
+        return ''
+
     def asDict(self, clean=True):
         if not clean:
             return asdict(self)
@@ -23,26 +26,54 @@ class Component:
     def values(self, clean=True):
         return list(self.asDict(clean).values())
 
-    def title(self):
-        return ''
+    def get_values(self, vorder):
+        ''' returns field values in prescribed order '''
+        return [getattr(self, f) for f in vorder]
+
+    def set_field(self, f, v, replace=True):
+        ''' sets all instances of field to value in self and any nested Components '''
+        for field in self.fields(clean=False):
+            child = getattr(self, field)
+            print(type(child).__mro__)
+            print(ExpComponent)
+            print(type(child).__mro__[-2] if len(type(child).__mro__) > 1 else None)
+            if field == f and (replace or getattr(self, field) is None):
+                setattr(self, field, v)
+            elif isinstance(child, ExpComponent):
+                child.set_field(f, v)
+
+    def copy(self, values=True, clean=False):
+        self_type = type(self)
+        new_set = self_type()
+        if values:
+            for a in self.fields(clean):
+                val = getattr(self, a)
+                setattr(new_set, a, val.copy() if isinstance(val, ExpComponent) else val)
+        return new_set
 
 
 @dataclass
-class CompSet(Component):
+class CompSet(ExpComponent):
     def __getitem__(self, item):
         return getattr(self, item)
 
     def __setitem__(self, item, value):
         setattr(self, item, value)
 
-    def field_count(self) -> int:
-        return len(self.fields())
+    def field_count(self, clean=True) -> int:
+        return len(self.fields(clean))
 
-    def set(self, value):
-        for f in self.fields(clean=False):
+    def has_field(self, key, clean=True):
+        return key in self.asDict(clean)
+
+    def has_value(self, value):
+        return value in self.asDict().values()
+
+    def set_all(self, value, clean=False):
+        ''' sets all parts to value, if clean is false, then it will also overwrite None values '''
+        for f in self.fields(clean):
             setattr(self, f, value)
         return self
-
 
 @dataclass
 class EdgeSet(CompSet):
@@ -55,33 +86,3 @@ class EdgeSet(CompSet):
 @dataclass
 class PinnSet(EdgeSet):
     core: Any = None
-
-
-@dataclass
-class ModularComponent(Component):
-    x: float = None
-    y: float = None
-
-    def title(self):
-        return f'Component at ({self.x}, {self.y})'
-
-
-@dataclass
-class NDComponent(ModularComponent):
-    measure: str = None
-    length: float | int = None
-    width: float | int = None
-    masks = PinnSet(
-        top=(0, slice(None)),  # y=0, all x   → (1, 20) = 20 pts
-        bottom=(-1, slice(None)),  # y=max, all x → 20 pts
-        left=(slice(None), 0),  # all y, x=0   → 10 pts
-        right=(slice(None), -1),  # all y, x=max → 10 pts
-        core=(slice(1, -1), slice(1, -1))  # (8, 18) = 144 pts
-    )
-    # 0 for x-normal (left/right), 1 for y-normal (top/bottom)
-    axis = EdgeSet(top=1, bottom=1, left=0, right=0)
-    # direction of normal vector pointing outward
-    out = EdgeSet(top=1, bottom=-1, left=-1, right=1)
-
-    def shape(self) -> tuple:
-        return self.width, self.length  # (ny, nx) = (rows, cols) — numpy convention

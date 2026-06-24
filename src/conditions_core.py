@@ -53,20 +53,17 @@ class GaussianPde(PdeCore):
 
     def build_power_map(self, coords, power: List[Gaussian], device):
         ''' gaussian heat source: Q(x,y) = A * exp(-((x-x0)^2 + (y-y0)^2) / (2*sigma^2)) '''
-        amplitude = torch.tensor([g.amplitude for g in power], dtype=torch.float32).to(device)
-        spread = torch.tensor([g.spread for g in power], dtype=torch.float32).to(device)
-        location = torch.tensor([[g.x, g.y] for g in power], dtype=torch.float32).to(device)
+        amplitude, spread, xg, yg = torch.tensor( # order must match return def
+            [g.get_values(['amp', 'spread', 'x', 'y']) for g in power],
+        dtype=torch.float32, device=device).unbind(dim=-1)
 
-        x, y = coords[:, 0:1], coords[:, 1:2]  # (N, 1)
-        x0, y0 = location[:, 0], location[:, 1]  # (M, 1) or (1,)
-        r2 = (x - x0) ** 2 + (y - y0) ** 2  # (N, M) or (N, 1)
-        # amplitude
+        x, y = coords[:, 0:1], coords[:, 1:2]
+        r2 = (x - xg) ** 2 + (y - yg) ** 2
         Q = amplitude * torch.exp(-r2 / (2 * spread ** 2))
 
-        # Powermap check (should be ~ =)
-        # print("Peak Q =", torch.max(Q), " Amplitude =", amplitude)
+        # print("Peak Q =", torch.max(Q), " Amplitude =", amplitude) # Powermap check (should be ~ =)
 
-        self.power_map = Q.sum(dim=-1, keepdim=True).detach()  # (N, 1) — sum over all sources
+        self.power_map = Q.sum(dim=-1, keepdim=True).detach()
         return self.power_map
 
     def residual(self, u, coords) -> Tensor:

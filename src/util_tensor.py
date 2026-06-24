@@ -19,13 +19,13 @@ def to_numpy(tns:list[Tensor], shape:tuple=None):
         nps.append(n)
     return nps
 
-def build_grid_map(dimsA:tuple, dimsB:tuple):
+def build_grid_map(dimsA:tuple, dimsB:tuple, offset:tuple=(0.0,0.0)):
     ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
-    xs = torch.linspace(0, dimsA[0], dimsB[0])  # (20,)
-    ys = torch.linspace(0, dimsA[1], dimsB[1])  # (10,)
-    yy, xx = torch.meshgrid(ys, xs, indexing='ij')  # (10, 20) — dim0=y ✓
+    xs = torch.linspace(0, dimsA[0], dimsB[0]) + offset[0]
+    ys = torch.linspace(0, dimsA[1], dimsB[1]) + offset[1]
+    yy, xx = torch.meshgrid(ys, xs, indexing='ij')
     grid_map = torch.stack([xx, yy], dim=-1).reshape(-1, 2)
-    return xs, ys, grid_map  # (200, 2)
+    return xs, ys, grid_map
 
 def normalize(tensor, vmin=None, vmax=None):
     t_min = torch.min(tensor)
@@ -40,10 +40,8 @@ def normalize(tensor, vmin=None, vmax=None):
     return normalized
 
 def normalize_np(arr, vmin=None, vmax=None):
-    if vmin is None:
-        vmin = np.min(arr)
-    if vmax is None:
-        vmax = np.max(arr)
-    arr = (arr - vmin) / (vmax - vmin)
-    print(arr)
-    return arr
+    nmin, nmax = np.min(arr), np.max(arr)
+    normal = (arr - nmin) / (vmax - nmax)
+    if vmin is not None and vmax is not None:
+        normal = normal * (vmax - vmin) + vmin
+    return normal

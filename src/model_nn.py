@@ -11,9 +11,9 @@ import util_tensor
 from conditions import LossComponent
 from conditions_core import PairedData
 from loss import LossEngine
-from src.components import Component
+from components import ExpComponent
 from src.mediums import Medium, Grid
-from util_data import ModelData
+from util_data import ModelData, PowerSourceSet
 
 
 class FourierFeatures(nn.Module):
@@ -78,7 +78,7 @@ class BasicMLP(nn.Module):
 
 
 @dataclass
-class ThermalModel2D(Component):
+class ThermalModel2D(ExpComponent):
     '''
     MLP Model for single 2D plate use
     '''
@@ -125,12 +125,13 @@ class ThermalModel2D(Component):
         self.model.load_checkpoint(self.optimizer, load_dir, check_name=f'_epoch{epoch}_{name}')
         self.engine.load_hist(load_dir, epoch=epoch)
 
-    def _build_grid_map(self, plot=False):
+    def _build_grid_map(self, offset=(0.0,0.0), plot=False):
         ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
-        xs, ys, grid_map = util_tensor.build_grid_map(self.plate.shape(), self.grid.shape())
+        xs, ys, grid_map = util_tensor.build_grid_map(self.plate.shape(), self.grid.shape(), offset)
         if plot:
             return xs, ys, grid_map
-        return grid_map  # (200, 2)
+        self.grid_map = grid_map
+        return self.grid_map
 
     def _grid_mask(self, part) -> Tensor:
         ''' a flat boolean mask for use on flattened (N, 2) coord tensor '''
@@ -146,7 +147,7 @@ class ThermalModel2D(Component):
         return self.grid_map[mask]
 
     def train_model(self, train_data: ModelData, epochs=24) -> pd.DataFrame:
-        print(f"...start epoch: {self.engine.load_epoch}")
+        print(f"...start epoch: {self.engine.e()}")
         check_int = min(1000, floor(epochs // 3))
         epochs = self.engine.e() + epochs
         while self.engine.e() < epochs:
@@ -167,6 +168,7 @@ class ThermalModel2D(Component):
 
 @dataclass
 class PowerMapPlateModel(ThermalModel2D):
+    ''' assumes model data is ordered '''
 
     def default_model(self, num_blocks=6, num_hidden=512, lr=1e-3, wt_decay=1e-4, device='cuda'):
         self.build_model(3, 1, num_blocks, num_hidden, lr, wt_decay, device)
@@ -183,28 +185,29 @@ class PowerMapPlateModel(ThermalModel2D):
         preds = self.model(mod_in)
 
         # TODO: loss scale is applied before loss calculation, and loss wts are applied after
-        cur_loss = bc.loss(u=preds*self.engine.loss_scale, coords=coords)
+        # loss_scale = self.engine.loss_scale if part=='paired' else 1
+        cur_loss = bc.loss(u=preds, coords=coords)
         if eval:
             residuals = bc.residual(u=preds, coords=coords)
             return preds, residuals, cur_loss
 
         return preds, cur_loss
 
-    def _build_input(self, power_data, part) -> tuple[Tensor, Tensor, LossComponent]:
+    def _build_input(self, psource:PowerSourceSet, part) -> tuple[Tensor, Tensor, LossComponent]:
         coords = self._coords(part)
-        power = power_data.next(part)
+        power_map = self.plate.bc('core').build_power_map(coords, psource.pinn, self._device)
         if part == 'paired':
-            power_map = power.input
-            bc = PairedData(solution=power.solution.to(self._device))
+            psource.paired.input = power_map.to(self._device)
+            bc = PairedData(solution=psource.paired.solution.to(self._device))
         else:
-            power_map = self.plate.bc('core').build_power_map(coords, power, self._device)
             bc = self.plate.bc(part)
         return coords, power_map, bc
 
     def eval_model(self, power_data: ModelData, part=None, normal:tuple=None):
         with torch.enable_grad():
             self.optimizer.zero_grad()
-            coords, power_map, bc = self._build_input(power_data, part=part)
+            power_source = power_data.next()
+            coords, power_map, bc = self._build_input(power_source, part=part)
             temps, residuals, total_loss = self._model(coords, power_map, bc, eval=True)
 
             if normal is not None:
@@ -222,18 +225,22 @@ class PowerMapPlateModel(ThermalModel2D):
         ''' PINN training based on gaussian power input '''
         self.optimizer.zero_grad()
         total_loss = self.engine.new_epoch().to(self._device)
-        for part in self.engine.loss_parts():
+        num_parts = 0
+        power_source = power_data.next()
+        for part, train in self.engine.loss_parts().items():
             # TODO: best PINN results when coords and power map are rebuilt each time
-            coords, power_map, bc = self._build_input(power_data, part)
+            if not train and not self.engine.is_checkpoint(10):
+                continue
+
+            coords, power_map, bc = self._build_input(power_source, part)
             temps, cur_loss = self._model(coords, power_map, bc, eval=False)
+            cur_loss = self.engine.add_loss(part, cur_loss, self._device)
 
-            # TODO: removing coords.shape[0] (num points) will break loss ...why?
-            cur_loss = cur_loss * self.engine.wt(part).to(self._device)
-            cur_loss = cur_loss / coords.shape[0]
-            self.engine.add_loss(part, cur_loss)
-            total_loss = total_loss + cur_loss
+            if train: # aka, if train is true, include in total
+                total_loss = total_loss + cur_loss
+                num_parts += 1
 
-        total_loss = total_loss / len(self.engine.loss_parts())
+        total_loss = total_loss / num_parts
         total_loss.backward(retain_graph=True)
         self.optimizer.step()
         self.engine.save_epoch(total_loss)

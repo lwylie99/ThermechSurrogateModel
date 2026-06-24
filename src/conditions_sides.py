@@ -7,7 +7,6 @@ from loss import residual_mse, jacobian
 
 """ for boundary conditions that apply to the edges/sides of a thermal medium """
 
-
 @dataclass
 class Edge(BoundaryCondition):
     ''' edges enforce residuals of 0 '''
@@ -61,7 +60,8 @@ class Robin(Edge):
         Enforces: h * (u - ambient) + direction * k * ∂u/∂n = 0
         '''
         u_jac = jacobian(u, coords)
-        flux_term = self.direction * self.k * u_jac[..., self.axis]
+        flux_term = self.direction * self.k
+        flux_term = flux_term * u_jac[..., self.axis]
         convection_term = self.h * (u.squeeze() - self.ambient)
 
         residual = (convection_term + flux_term.squeeze()).squeeze()

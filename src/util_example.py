@@ -16,15 +16,45 @@ from util_plots import *
 #             title=title, save_dir=save_dir, save_suffix=f'_comp_{i}'
 #         )
 
+def eval_offset_example(model, power_data: ModelData, offset, title=None, save_dir=None, inced=None, normal=False, suff=''):
+    if len(power_data.paired) != len(power_data.pinn):
+        print("WARN: all paired data must have associated pinn/power_source data to do offset grid")
+        return
 
-def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, inced=None, normal=False):
+    xs, ys, grid_map = model._build_grid_map(offset=offset, plot=True)
+    # print(f"shapes --> plate: {model.plate.shape()}, grid: {model.grid.shape()}")
+    # print(f"       --> grid_map: {model.grid_map.shape}, xs: {xs.shape}, ys: {ys.shape}")
+
+    for i in range(len(power_data.paired)):
+        pinn, pair = power_data._next_pinn(), power_data._next_pair()
+        pair.input = None
+        offset_data = ModelData(pinn=[pinn], paired=[pair])
+        truth_np = util_tensor.to_numpy([pair.solution], model.grid.shape())[0]
+        norm_range = (np.min(truth_np), np.max(truth_np)) if normal else None
+        total_loss, temps, power_map = model.eval_model(power_data=offset_data, part='paired', normal=norm_range)
+
+        # print(f"       --> p.input: {pair.input.shape}, p.solution: {pair.solution.shape}")
+        # print(f"       --> truth_np: {truth_np.shape}, power: {power_map.shape}, temps: {temps.shape}")
+
+        if inced is not None:
+            temps = temps + inced
+
+        plot_analytical_comparison(temps, truth_np, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_{suff}_offest_evalpair{i}'
+        )
+
+        plot_power_map_predictions(temps, power_map, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_{suff}_offest_evalpair{i}'
+        )
+
+def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, inced=None, normal=False, suff=''):
     xs, ys, grid_map = model._build_grid_map(plot=True)
 
     print(f"shapes --> plate: {model.plate.shape()}, grid: {model.grid.shape()}")
-    print(f"       --> grid_map: {grid_map.shape}, xs: {xs.shape}, ys: {ys.shape}")
+    print(f"       --> grid_map: {model.grid_map.shape}, xs: {xs.shape}, ys: {ys.shape}")
 
     for i in range(len(power_data.paired)):
-        p = power_data.next('paired', pop=False)
+        p = power_data._next_pair(pop=False)
         truth_np = util_tensor.to_numpy([p.solution], model.grid.shape())[0]
         norm_range = (np.min(truth_np), np.max(truth_np)) if normal else None
         total_loss, temps, power_map = model.eval_model(power_data=power_data, part='paired', normal=norm_range)
@@ -36,11 +66,15 @@ def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, 
             temps = temps + inced
 
         plot_analytical_comparison(temps, truth_np, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_evalpair{i}'
+            title=title, save_dir=save_dir, save_suffix=f'_{suff}_evalpair{i}'
+        )
+
+        plot_power_map_predictions(temps, power_map, xs, ys,
+            title=title, save_dir=save_dir, save_suffix=f'_{suff}_evalpair{i}'
         )
 
     for i in range(len(power_data.pinn)):
-        p = power_data.next('pinn', pop=False)
+        p = power_data._next_pinn(pop=False)
         total_loss, temps, power_map, residuals = model.eval_model(power_data=power_data)
 
         if inced is not None:
@@ -50,14 +84,14 @@ def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, 
         print(f"       --> power: {power_map.shape}, temps: {temps.shape}, xs: {xs.shape}, ys: {ys.shape}")
 
         plot_power_map_predictions(temps, power_map, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_p{i}'
+            title=title, save_dir=save_dir, save_suffix=f'_{suff}_p{i}'
         )
 
-        plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_p{i}')
+        plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_{suff}_p{i}')
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
 
 
-def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None, save_hist=False):
+def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None):
     if loss_hist is None:
         loss_hist = pd.DataFrame(trained_model.engine.hist)
 
@@ -69,13 +103,13 @@ def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=No
         loss_hist = loss_hist.iloc[:epoch]
         suffix = f'{epoch}e'
 
-    # if save_dir is not None:
-    #     loss_hist.to_csv(save_dir / f"loss_history{suffix}.csv")
-
-    plot_bc_loss(loss_hist, log_scale=True, compress=compress,
-        suffix=suffix, save_dir=save_dir
+    plot_bc_loss(trained_model, loss_hist, log_scale=True, compress=compress,
+        all_parts=False, suffix=suffix, save_dir=save_dir
     )
-    plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
+    plot_bc_loss(trained_model, loss_hist,
+        all_parts=True, suffix=f'_allparts_{suffix}', save_dir=save_dir
+    )
+    plot_col_loss(loss_hist, col='core', log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
     plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
 
 
