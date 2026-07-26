@@ -75,9 +75,9 @@ class LossEngine(ExpComponent):
     core_only: bool = False  # if you want to train/eval core without BCs
     paired_freq: int = 0
 
-    log_freq: int = 0
-    check_freq: int = 0
-    eval_freq: int = 0
+    log_freq: int = 0       # training log frequency
+    check_freq: int = 0     # how often model weights are saved
+    eval_freq: int = 0      # how often prediction is compared to actual solution
 
     converged: bool = False
     converge_loss: float = 1e-6

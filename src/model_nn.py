@@ -185,14 +185,13 @@ class PowerMapPlateModel(ThermalModel2D):
         dim=-1).requires_grad_(True).to(self._device)
 
         preds = self.model(mod_in)
+        # normalize for PDE only worked best for training
         if self.engine.norm_preds and coords.shape[0]==self.grid.length*self.grid.width:
             preds = preds - torch.min(preds) + self.plate.ambient
             # preds = util_tensor.normalize(preds.requires_grad_(True),
             #     vmin=self.plate.ambient, vmax=self.plate.ambient+torch.max(preds)-torch.min(preds)
             # ).requires_grad_(True)
 
-        # TODO: loss scale is applied before loss calculation, and loss wts are applied after
-        # loss_scale = self.engine.loss_scale if part=='paired' else 1
         cur_loss = bc.loss(u=preds, coords=coords)
         if eval:
             residuals = bc.residual(u=preds, coords=coords)
@@ -235,15 +234,16 @@ class PowerMapPlateModel(ThermalModel2D):
         num_parts = 0
         power_source = power_data.next()
         for part, train in self.engine.loss_parts().items():
-            # TODO: best PINN results when coords and power map are rebuilt each time
             if not train and not self.engine.is_eval_epoch():
                 continue
 
+            # best PINN results when coords and power map are rebuilt each time
             coords, power_map, bc = self._build_input(power_source, part)
             temps, cur_loss = self._model(coords, power_map, bc, eval=False)
             cur_loss = self.engine.add_loss(part, cur_loss, self._device)
 
-            if train and cur_loss > self.engine.converge_loss: # aka, if train is true, include in total
+            if train and cur_loss > self.engine.converge_loss:
+                # aka, if train is true & loss is large enough, include in total loss
                 total_loss = total_loss + cur_loss
                 num_parts += 1
 
