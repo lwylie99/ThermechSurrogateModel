@@ -1,3 +1,4 @@
+from math import floor
 from pathlib import Path
 
 import numpy as np
@@ -47,17 +48,20 @@ def get_exp_model_setup():
 
     # wts = PinnSet().set(1.0)
     # wts.core = 10.0
-    loss_engine = LossEngine(paired_freq=10)
+    loss_engine = LossEngine()
     check_dir = Path(r'checkpoints').resolve()
     model = PowerMapPlateModel(
         plate=plate, grid=grid, engine=loss_engine,
         checkpoint_dir=check_dir
     ) # train on just core to troubleshoot
     model.default_model(
-        num_blocks=7, num_hidden=512,
+        num_blocks=5, num_hidden=128,
         lr=1e-3, wt_decay=1e-4, device='cuda'
     )
     print('PINN MODEL SETUP: \n', model.model)
+
+    # rn this just incs so min is 25
+    model.engine.norm_preds = True
     return model
 
 if __name__ == "__main__":
@@ -70,39 +74,52 @@ if __name__ == "__main__":
     # model.load_model(model_path)
     # load_mod_dir = Path(r'../best_models/singleplate_powermap_v3/checkpoints').resolve()
     # model.load_checkpoint(epoch=700, load_dir=load_mod_dir)
-    model.load_checkpoint(epoch=5000)
+    model.load_checkpoint(epoch=30000) # first 1k were paired and PDE
 
-    model.engine.core_only = True
-    model.engine.paired_freq = 0 # for every 5 epochs, paired is included once
-    model.engine.loss_wts['paired'] = 1e-3
-
-    if model.engine.e() == 1 or model.engine.load_epoch == 0:
-        util_data.clear_dir(model.checkpoint_dir)
+    # if model.engine.e() == 1 or model.engine.load_epoch == 0:
+    # util_data.clear_dir(model.checkpoint_dir)
     util_data.clear_dir(train_dir)
 
-    ''' start with brief intro to ground truth '''
-    model.engine.core_only = True
-    model.engine.paired_freq = 10
-    model.engine.loss_wts.set_all(model.grid_map.shape[0]**1.7)
-    model.engine.loss_wts['paired'] = 1e-4
+    num_epochs = 20000
+    model.engine.log_freq = min(1000, floor(num_epochs // 10))
+    model.engine.check_freq = min(1000, floor(num_epochs // 2))
+    model.engine.eval_freq = 10
+
+    model.engine.paired_freq = 5
+    # model.engine.loss_wts.set_wts(
+    #     core=model.grid_map.shape[0]**1.7,
+    #     pinn=float(model.grid_map.shape[0]), paired=1e-4,
+    # )
+    model.engine.loss_wts.set_wts(
+        core=float(model.grid_map.shape[0]**1.7),
+        pinn=float(model.grid_map.shape[0]/5), paired=1e-4
+    )
+    # model.engine.loss_wts['top'] = 1
+    print('OPTIMIZER: \n', model.optimizer)
+    print(f'\nLOSS WTS: {model.engine.loss_wts.asJson()}\n')
+
+    ''' start with PDE/PAIRED only'''
+    model.engine.core_only = False
+    # model.engine.converge_loss = 1e-7
+    # model.set_lr(1e-3)
+    # loss_hist = model.train_model(train_data=train_data, epochs=4000)
+    # util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+
+    # model.set_lr(1e-4)
+    # model.engine.converge_loss = 1e-7
+    # loss_hist = model.train_model(train_data=train_data, epochs=3000)
+    # util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+
+    # model.set_lr(7e-5)
+    # model.engine.converge_loss = 5e-7
+    # loss_hist = model.train_model(train_data=train_data, epochs=3000)
+    # util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+
     model.set_lr(1e-5)
-    # print('OPTIMIZER: \n', model.optimizer)
-    # print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
-    # loss_hist = model.train_model(train_data=train_data, epochs=5)
-
-    ''' focus on PDE loss only '''
-    model.engine.paired_freq = 5 # for every 5 epochs, paired is included once
-    print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
-    loss_hist = model.train_model(train_data=train_data, epochs=15000)
-
-    ''' PDE with sparse ground truth reinforcement '''
-    # model.engine.paired_freq = 5 # for every 100 epochs, paired is included once
-    # model.engine.loss_wts['paired'] = 5e-4
-    # print(f'LOSS SCALE: {model.engine.loss_scale}, WTS: {model.engine.loss_wts}')
-    # loss_hist = model.train_model(train_data=train_data, epochs=50)
-
-
+    model.engine.converge_loss = 4e-7
+    loss_hist = model.train_model(train_data=train_data, epochs=10000)
     util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+
 
     print('\nEVAL TRAIN PERFORMANCE... ')
     util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)

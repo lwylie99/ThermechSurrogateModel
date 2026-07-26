@@ -57,6 +57,14 @@ class Medium(NDComponent):
             return self.bcs['core']
         return self.bcs[part]
 
+    # def ambient(self):
+    #     ''' returns min ambient temp '''
+    #     min_ambient = self.ambient
+    #     for bc in self.bcs:
+    #         if bc.has_field('ambient') and bc['ambient'] < :
+
+
+
 
 @dataclass
 class Grid(NDComponent):

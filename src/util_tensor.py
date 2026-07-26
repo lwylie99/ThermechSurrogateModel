@@ -30,7 +30,7 @@ def build_grid_map(dimsA:tuple, dimsB:tuple, offset:tuple=(0.0,0.0)):
 def normalize(tensor, vmin=None, vmax=None):
     t_min = torch.min(tensor)
     t_max = torch.max(tensor)
-    print(f'normalize: target=({vmin}, {vmax}), tensor range=[{t_min}, {t_max}]')
+    # print(f'normalize: target=({vmin}, {vmax}), tensor range=[{t_min}, {t_max}]')
     if t_max == t_min:
         return torch.zeros_like(tensor)
     # Scale to [0, 1] first, then scale into [vmin, vmax]

@@ -21,6 +21,9 @@ class ExpComponent:
         return json.dumps(self.asDict(clean), sort_keys=False, indent=4)
 
     def fields(self, clean=True):
+        # return [f.name for f in fields(self)
+        #     if not clean or getattr(self, f.name) is not None
+        # ]
         return list(self.asDict(clean).keys())
 
     def values(self, clean=True):
@@ -34,9 +37,6 @@ class ExpComponent:
         ''' sets all instances of field to value in self and any nested Components '''
         for field in self.fields(clean=False):
             child = getattr(self, field)
-            print(type(child).__mro__)
-            print(ExpComponent)
-            print(type(child).__mro__[-2] if len(type(child).__mro__) > 1 else None)
             if field == f and (replace or getattr(self, field) is None):
                 setattr(self, field, v)
             elif isinstance(child, ExpComponent):
@@ -45,10 +45,12 @@ class ExpComponent:
     def copy(self, values=True, clean=False):
         self_type = type(self)
         new_set = self_type()
-        if values:
-            for a in self.fields(clean):
-                val = getattr(self, a)
-                setattr(new_set, a, val.copy() if isinstance(val, ExpComponent) else val)
+        if not values:
+            return new_set
+
+        for a in self.fields(clean):
+            val = getattr(self, a)
+            setattr(new_set, a, val.copy() if isinstance(val, ExpComponent) else val)
         return new_set
 
 
@@ -74,6 +76,7 @@ class CompSet(ExpComponent):
         for f in self.fields(clean):
             setattr(self, f, value)
         return self
+
 
 @dataclass
 class EdgeSet(CompSet):

@@ -14,9 +14,9 @@ if __name__ == "__main__":
     train_dir = get_exp_results_dir()
 
     ''' LOAD MODEL '''
-    model.load_checkpoint(epoch=20000)
+    print(f"checkpoint dir: {model.checkpoint_dir}")
+    model.load_checkpoint()
 
-    model.engine.core_only = True
     print('OPTIMIZER: \n', model.optimizer)
 
     ''' EVAL MODEL '''
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     eval_dir = Path('eval').resolve()
     util_data.clear_dir(eval_dir)
     util_example.eval_plate_example(model, power_data=input_data, normal=True,
-        title='Center Gauss PDE & Paired (Normal)', save_dir=eval_dir
+        title=f'Center Gauss {model.engine.e()+1} Epochs (Normal)', save_dir=eval_dir
     )
     util_example.plot_example_losshist(model, save_dir=eval_dir)
 
@@ -35,20 +35,29 @@ if __name__ == "__main__":
         (model.plate.width / model.grid.width) * 0.5
     )
     util_example.eval_offset_example(model=model, power_data=input_data, offset=offset,
-        title='Gauss PDE & Pairs (Offset)', save_dir=eval_dir, suff='offset'
+        title=f'Gauss Power With BCs {model.engine.e()} Epochs (Offset)', save_dir=eval_dir, suff=''
     )
     util_example.eval_offset_example(model=model, power_data=input_data, normal=True, offset=offset,
-        title='Gauss PDE & Pairs (Norm, Off)', save_dir=eval_dir, suff='norm_offset'
+        title=f'Gauss Power With BCs {model.engine.e()} Epochs (Norm, Off)', save_dir=eval_dir, suff='norm'
     )
 
-    # print('\nEVAL NEW DOMAIN... ')
-    # fixed_spread, fixed_power = 3.0, 0.8
-    # fixed_amp = fixed_power / (2 * np.pi * fixed_spread ** 2)
-    # power_sources = [
-    #     # Gaussian(x=20.0, y=20.0, spread=fixed_spread, amplitude=fixed_amp),
-    #     Gaussian(x=30.0, y=10.0, spread=fixed_spread, amplitude=fixed_amp),
-    # ]
-    # new_pinn = util_data.ModelData(pinn=[power_sources], paired=[])
-    # util_example.eval_plate_example(model, power_data=new_pinn, normal=True,
-    #     title='Gauss PDE & Pairs (Unseen)', save_dir=eval_dir, suff='unseen'
-    # )
+
+    model.load_checkpoint(epoch=29000)
+    print(f'...eval pde only training (model at {model.engine.e()}')
+    util_example.eval_plate_example(model, power_data=input_data, normal=True,
+        title=f'Center Gauss {model.engine.e()} Epochs (Normal)',
+        save_dir=eval_dir, suff=f'{model.engine.e()}epochs'
+    )
+
+    offset = (
+        (model.plate.length / model.grid.length) * 0.5,
+        (model.plate.width / model.grid.width) * 0.5
+    )
+    util_example.eval_offset_example(model=model, power_data=input_data, offset=offset,
+        title=f'Gauss Power {model.engine.e()} Epochs (Offset)', save_dir=eval_dir, suff=f'{model.engine.e()}epochs'
+    )
+    util_example.eval_offset_example(model=model, power_data=input_data, normal=True, offset=offset,
+        title=f'Gauss Power {model.engine.e()} Epochs (Norm, Off)', save_dir=eval_dir, suff=f'norm_{model.engine.e()}epochs'
+    )
+
+

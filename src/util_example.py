@@ -66,11 +66,11 @@ def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, 
             temps = temps + inced
 
         plot_analytical_comparison(temps, truth_np, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_{suff}_evalpair{i}'
+            title=title, save_dir=save_dir, save_suffix=f'{suff}_evalpair{i}'
         )
 
         plot_power_map_predictions(temps, power_map, xs, ys,
-            title=title, save_dir=save_dir, save_suffix=f'_{suff}_evalpair{i}'
+            title=title, save_dir=save_dir, save_suffix=f'{suff}_evalpair{i}'
         )
 
     for i in range(len(power_data.pinn)):
@@ -106,7 +106,7 @@ def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=No
     plot_bc_loss(trained_model, loss_hist, log_scale=True, compress=compress,
         all_parts=False, suffix=suffix, save_dir=save_dir
     )
-    plot_bc_loss(trained_model, loss_hist,
+    plot_bc_loss(trained_model, loss_hist, log_scale=True,
         all_parts=True, suffix=f'_allparts_{suffix}', save_dir=save_dir
     )
     plot_col_loss(loss_hist, col='core', log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)

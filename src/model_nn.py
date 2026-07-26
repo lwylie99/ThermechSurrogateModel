@@ -42,7 +42,7 @@ class BasicMLP(nn.Module):
             nn.init.zeros_(l.bias)
             self.layers += [l,
                             nn.Tanh(),
-                            nn.Dropout(dropout)
+                            # nn.Dropout(dropout)
                             ]
             l_in = l_out
 
@@ -119,11 +119,12 @@ class ThermalModel2D(ExpComponent):
     def load_model(self, load_path=''):
         self.model.load_model(self.optimizer, path=load_path)
 
-    def load_checkpoint(self, epoch, name='', load_dir=None):
+    def load_checkpoint(self, epoch=None, name='', load_dir=None):
         if load_dir is None:
             load_dir = self.checkpoint_dir
-        self.model.load_checkpoint(self.optimizer, load_dir, check_name=f'_epoch{epoch}_{name}')
         self.engine.load_hist(load_dir, epoch=epoch)
+        epoch = self.engine.e()
+        self.model.load_checkpoint(self.optimizer, load_dir, check_name=f'_epoch{epoch}_{name}')
 
     def _build_grid_map(self, offset=(0.0,0.0), plot=False):
         ''' MAPS PLATE TO GRID coords[x,x] = [x_mm, y_mm] '''
@@ -148,12 +149,12 @@ class ThermalModel2D(ExpComponent):
 
     def train_model(self, train_data: ModelData, epochs=24) -> pd.DataFrame:
         print(f"...start epoch: {self.engine.e()}")
-        check_int = min(1000, floor(epochs // 3))
         epochs = self.engine.e() + epochs
-        while self.engine.e() < epochs:
+        while self.engine.e() < epochs and not self.engine.converged:
             last_loss = self._train(train_data)
-            if self.engine.is_checkpoint(check_int):
+            if self.engine.is_log_epoch():
                 print(f'EPOCH[{self.engine.e():5}/{epochs:<5}] loss --> last:', self.engine.hist[-1])
+            if self.engine.is_checkpoint():
                 self.save_checkpoint(loss=last_loss)
 
         print('training complete, saving last checkpoint...')
@@ -181,8 +182,14 @@ class PowerMapPlateModel(ThermalModel2D):
 
         mod_in = torch.cat(
             [coords.requires_grad_(True), power_map.requires_grad_(True)],
-            dim=-1).requires_grad_(True).to(self._device)
+        dim=-1).requires_grad_(True).to(self._device)
+
         preds = self.model(mod_in)
+        if self.engine.norm_preds and coords.shape[0]==self.grid.length*self.grid.width:
+            preds = preds - torch.min(preds) + self.plate.ambient
+            # preds = util_tensor.normalize(preds.requires_grad_(True),
+            #     vmin=self.plate.ambient, vmax=self.plate.ambient+torch.max(preds)-torch.min(preds)
+            # ).requires_grad_(True)
 
         # TODO: loss scale is applied before loss calculation, and loss wts are applied after
         # loss_scale = self.engine.loss_scale if part=='paired' else 1
@@ -229,20 +236,23 @@ class PowerMapPlateModel(ThermalModel2D):
         power_source = power_data.next()
         for part, train in self.engine.loss_parts().items():
             # TODO: best PINN results when coords and power map are rebuilt each time
-            if not train and not self.engine.is_checkpoint(10):
+            if not train and not self.engine.is_eval_epoch():
                 continue
 
             coords, power_map, bc = self._build_input(power_source, part)
             temps, cur_loss = self._model(coords, power_map, bc, eval=False)
             cur_loss = self.engine.add_loss(part, cur_loss, self._device)
 
-            if train: # aka, if train is true, include in total
+            if train and cur_loss > self.engine.converge_loss: # aka, if train is true, include in total
                 total_loss = total_loss + cur_loss
                 num_parts += 1
 
-        total_loss = total_loss / num_parts
-        total_loss.backward(retain_graph=True)
-        self.optimizer.step()
-        self.engine.save_epoch(total_loss)
+        if num_parts == 0:
+            self.engine.converged = True
+        else:
+            total_loss = total_loss / num_parts
+            total_loss.backward(retain_graph=True)
+            self.optimizer.step()
+            self.engine.save_epoch(total_loss)
 
         return total_loss

@@ -21,7 +21,7 @@ def plot_bc_loss(trained_model, loss_hist: pd.DataFrame, log_scale=False, compre
     for col in loss_hist.columns:
         if col == 'total' or col == 'epoch' or not parts[col]:
             continue
-        bc = loss_hist[['epoch', col]].dropna()
+        bc = pd.DataFrame(loss_hist[['epoch', col]]).dropna()
         bc[col] = util_tensor.normalize_np(bc[col], 0, 1)
         ax.plot(bc['epoch'], bc[col], label=col, linewidth=1.0, linestyle='-')
 
