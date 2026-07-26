@@ -1,6 +1,7 @@
 from math import floor
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 
 import util_data
@@ -116,7 +117,6 @@ if __name__ == "__main__":
     model.engine.eval_freq = 10  # how often prediction is compared to actual solution (not applied to loss)
 
     print('OPTIMIZER: \n', model.optimizer)
-    print(f'\nLOSS WTS: {model.engine.loss_wts.asJson()}\n')
 
 
     ''' HAIDER - INITIAL LOSS CONFIG
@@ -142,34 +142,44 @@ if __name__ == "__main__":
         pinn=float(model.grid_map.shape[0]), paired=1e-4,
     )
 
+    print(f'\nLOSS WTS: {model.engine.loss_wts.asJson()}\n')
+
     # round 1 - large lr, large converge_loss
     model.set_lr(1e-3)
     loss_hist = model.train_model(train_data=train_data, epochs=num_epochs)
-    # plots training progress, most relevant results in loss_total_plot_log and compare_temps
+    # plots training progress, most relevant results in loss_core_plot_log, loss_total_plot_log and compare_temps
     util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+    util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)
 
     # round 2 - lower lr
     model.set_lr(1e-4)
-    loss_hist = model.train_model(train_data=train_data, epochs=num_epochs*2)
+    model.engine.converge_loss = 1e-5
+    loss_hist = model.train_model(train_data=train_data, epochs=num_epochs)
     util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+    util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)
 
     # round 3 - lower lr, lower converge loss
     model.set_lr(7e-5)
-    model.engine.converge_loss = 1e-6
-    loss_hist = model.train_model(train_data=train_data, epochs=num_epochs*2)
+    model.engine.converge_loss = 1e-5
+    loss_hist = model.train_model(train_data=train_data, epochs=num_epochs)
     util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+    util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)
 
     # round 3 - lower lr, lower converge loss
     model.set_lr(1e-5)
     model.engine.converge_loss = 1e-7
     loss_hist = model.train_model(train_data=train_data, epochs=num_epochs*2)
     util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+    util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)
+
+    # round 3 part 2
+    loss_hist = model.train_model(train_data=train_data, epochs=num_epochs*2)
+    util_example.plot_example_losshist(model, loss_hist=loss_hist.copy(), save_dir=train_dir)
+    util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)
 
     ''' produces extra visuals and graphs and puts them into 'results' dir
-    most relevant results in eval/...
     - compare_analytical_norm -> norms predictions to analytical range to evaluate shape
     - compare_analytical_offset (norm or not norm) -> prediction on unseen domain
-    - 
     '''
     print('\nEVAL TRAIN PERFORMANCE... ')
     util_example.eval_plate_example(model, power_data=train_data, save_dir=train_dir)

@@ -47,6 +47,8 @@ def eval_offset_example(model, power_data: ModelData, offset, title=None, save_d
             title=title, save_dir=save_dir, save_suffix=f'_{suff}_offest_evalpair{i}'
         )
 
+    plt.close('all')
+
 def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, inced=None, normal=False, suff=''):
     xs, ys, grid_map = model._build_grid_map(plot=True)
 
@@ -90,6 +92,7 @@ def eval_plate_example(model, power_data: ModelData, title=None, save_dir=None, 
         plot_pde_residuals(residuals, xs, ys, title=title, save_dir=save_dir, save_suffix=f'_{suff}_p{i}')
         # plot_gauss_approx_solution(model, model.plate, model.grid, model.grid_map, p, save_dir=save_dir)
 
+    plt.close('all')
 
 def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=None, save_dir=None):
     if loss_hist is None:
@@ -111,6 +114,8 @@ def plot_example_losshist(trained_model, loss_hist=None, compress=None, epoch=No
     )
     plot_col_loss(loss_hist, col='core', log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
     plot_total_loss(loss_hist, log_scale=True, suffix=suffix, save_dir=save_dir, compress=compress)
+
+    plt.close('all')
 
 
 def latest_model_path(check_dir: Path) -> str:
